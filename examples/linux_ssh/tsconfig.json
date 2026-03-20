@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "es2018",
+    "module": "commonjs",
+    "outDir": "./dist",
+    "lib": ["es2018", "dom"],
+    "declaration": false,
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": true,
+    "noImplicitThis": true,
+    "alwaysStrict": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": true,
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "typeRoots": [
+      "../types/index.d.ts",
+      "./node_modules/@types",
+      "../../node_modules/@types"
+    ]
+  },
+  "include": [
+    "./**/*.ts",
+    "../types/**/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

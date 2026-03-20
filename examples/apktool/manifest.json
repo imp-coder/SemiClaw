@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "toolpkg_id": "com.operit.apktool_bundle",
+  "version": "0.4.0",
+  "main": "dist/main.js",
+  "display_name": {
+    "zh": "Apktool 工具包",
+    "en": "Apktool Bundle"
+  },
+  "description": {
+    "zh": "通过 ToolPkg.readResource + Java.loadJar 载入内置 apktool runtime，并通过 child-first 包前缀隔离宿主依赖冲突后直接调用 brut.androlib.* 类。",
+    "en": "Load the bundled apktool runtime through ToolPkg.readResource + Java.loadJar, isolate host dependency conflicts with child-first package prefixes, then directly call brut.androlib.* classes."
+  },
+  "enabled_by_default": false,
+  "subpackages": [
+    {
+      "id": "apktool",
+      "entry": "dist/packages/apktool.js"
+    }
+  ],
+  "resources": [
+    {
+      "key": "apktool_runtime_android_jar",
+      "path": "resources/apktool/apktool-runtime-android.jar",
+      "mime": "application/java-archive"
+    },
+    {
+      "key": "apktool_android_framework_jar",
+      "path": "resources/apktool/android-framework.jar",
+      "mime": "application/java-archive"
+    }
+  ]
+}
