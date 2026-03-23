@@ -23,11 +23,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -51,6 +53,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -195,13 +198,17 @@ fun PermissionGuideScreen(
         )
     }
 
-    Column(
-            modifier =
-                    Modifier.fillMaxSize()
-                            .background(MaterialTheme.colorScheme.background)
-                            .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets.systemBars
+    ) { paddingValues ->
+        Column(
+                modifier =
+                        Modifier.fillMaxSize()
+                                .padding(paddingValues)
+                                .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+        ) {
         // 进度指示器
         LinearProgressIndicator(
                 progress = { (pagerState.currentPage + 1).toFloat() / pagerState.pageCount },
@@ -497,6 +504,7 @@ fun PermissionGuideScreen(
                 }
             }
         }
+    }
     }
 }
 
