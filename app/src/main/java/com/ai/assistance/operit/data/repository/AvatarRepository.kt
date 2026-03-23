@@ -207,65 +207,6 @@ interface AvatarPersistenceDelegate {
 }
 
 /**
- * Persistence delegate for DragonBones models.
- */
-class DragonBonesPersistenceDelegate : AvatarPersistenceDelegate {
-    override val type = AvatarType.DRAGONBONES
-
-    override fun scanDirectory(directory: File, isBuiltIn: Boolean): List<AvatarConfig> {
-        val allConfigs = mutableListOf<AvatarConfig>()
-        if (!directory.exists() || !directory.isDirectory) {
-            AppLogger.d("AvatarRepository", "DragonBones scan skipped (not dir): ${directory.absolutePath}")
-            return allConfigs
-        }
-
-        val jsonFiles = directory.listFiles { file ->
-            file.isFile && file.extension.equals("json", ignoreCase = true)
-        } ?: emptyArray()
-
-        val skeletonFile = jsonFiles.firstOrNull { !it.name.endsWith("_tex.json", ignoreCase = true) }
-        if (skeletonFile == null) {
-            if (jsonFiles.isNotEmpty()) {
-                AppLogger.d(
-                    "AvatarRepository",
-                    "DragonBones scan no skeleton json in ${directory.absolutePath}, jsons=${jsonFiles.joinToString { it.name }}"
-                )
-            }
-            return allConfigs
-        }
-
-        val modelName = skeletonFile.nameWithoutExtension.removeSuffix("_ske")
-        val textureJsonFile = File(directory, "${modelName}_tex.json")
-        val textureImageFile = File(directory, "${modelName}_tex.png")
-
-        if (!textureJsonFile.exists() || !textureImageFile.exists()) {
-            AppLogger.d(
-                "AvatarRepository",
-                "DragonBones scan incomplete in ${directory.absolutePath}, expected=${textureJsonFile.name}, ${textureImageFile.name}"
-            )
-            return allConfigs
-        }
-
-        val config = AvatarConfig(
-            id = buildAvatarConfigId(AvatarType.DRAGONBONES, directory, isBuiltIn),
-            name = directory.name,
-            type = AvatarType.DRAGONBONES,
-            isBuiltIn = isBuiltIn,
-            data = mapOf(
-                "folderPath" to directory.absolutePath,
-                "skeletonFile" to skeletonFile.name,
-                "textureJsonFile" to textureJsonFile.name,
-                "textureImageFile" to textureImageFile.name,
-                "isBuiltIn" to isBuiltIn
-            )
-        )
-        AppLogger.i("AvatarRepository", "DragonBones config recognized: ${directory.absolutePath}")
-        allConfigs.add(config)
-        return allConfigs
-    }
-}
-
-/**
  * Persistence delegate for WebP models.
  */
 class WebPPersistenceDelegate : AvatarPersistenceDelegate {
@@ -336,50 +277,6 @@ class Mp4PersistenceDelegate : AvatarPersistenceDelegate {
         AppLogger.i(
             "AvatarRepository",
             "MP4 config recognized: ${directory.absolutePath}, files=${mp4Files.joinToString { it.name }}"
-        )
-        allConfigs.add(config)
-        return allConfigs
-    }
-}
-
-class MmdPersistenceDelegate : AvatarPersistenceDelegate {
-    override val type = AvatarType.MMD
-
-    override fun scanDirectory(directory: File, isBuiltIn: Boolean): List<AvatarConfig> {
-        val allConfigs = mutableListOf<AvatarConfig>()
-        if (!directory.exists() || !directory.isDirectory) {
-            AppLogger.d("AvatarRepository", "MMD scan skipped (not dir): ${directory.absolutePath}")
-            return allConfigs
-        }
-
-        val modelCandidates = directory.listFiles { file ->
-            file.isFile && (file.extension.equals("pmx", ignoreCase = true) || file.extension.equals("pmd", ignoreCase = true))
-        } ?: emptyArray()
-        val modelFile = modelCandidates.firstOrNull() ?: return allConfigs
-
-        val motionFiles = directory.listFiles { file ->
-            file.isFile && file.extension.equals("vmd", ignoreCase = true)
-        }?.sortedBy { it.name.lowercase() }.orEmpty()
-
-        val data = mutableMapOf<String, Any>(
-            "basePath" to directory.absolutePath,
-            "modelFile" to modelFile.name
-        )
-        if (motionFiles.isNotEmpty()) {
-            data["motionFile"] = motionFiles.first().name
-            data["motionFiles"] = motionFiles.map { it.name }
-        }
-
-        val config = AvatarConfig(
-            id = buildAvatarConfigId(AvatarType.MMD, directory, isBuiltIn),
-            name = directory.name,
-            type = AvatarType.MMD,
-            isBuiltIn = isBuiltIn,
-            data = data
-        )
-        AppLogger.i(
-            "AvatarRepository",
-            "MMD config recognized: ${directory.absolutePath}, model=${modelFile.name}, motions=${if (motionFiles.isEmpty()) "<none>" else motionFiles.joinToString { it.name }}"
         )
         allConfigs.add(config)
         return allConfigs
@@ -463,10 +360,8 @@ class AvatarRepository(
     private val gson = Gson()
 
     private val delegates: Map<AvatarType, AvatarPersistenceDelegate> = listOf(
-        DragonBonesPersistenceDelegate(),
         WebPPersistenceDelegate(),
         Mp4PersistenceDelegate(),
-        MmdPersistenceDelegate(),
         GltfPersistenceDelegate()
     ).associateBy { it.type }
 

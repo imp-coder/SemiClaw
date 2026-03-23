@@ -158,18 +158,10 @@ object AIServiceFactory {
                     enableToolCall = enableToolCall
                 )
 
-            // MNN本地推理引擎
-            ApiProviderType.MNN -> MNNProvider(
-                context = context,
-                modelName = config.modelName,  // 使用modelName而不是mnnModelPath
-                forwardType = config.mnnForwardType,
-                threadCount = config.mnnThreadCount,
-                providerType = config.apiProviderType,
-                enableToolCall = enableToolCall,
-                supportsVision = supportsVision,
-                supportsAudio = supportsAudio,
-                supportsVideo = supportsVideo
-            )
+            // MNN本地推理引擎 - MNN module removed
+            ApiProviderType.MNN -> {
+                throw IllegalArgumentException("MNN provider is no longer supported. Please use a different provider.")
+            }
 
             // llama.cpp 本地推理引擎
             ApiProviderType.LLAMA_CPP -> LlamaProvider(

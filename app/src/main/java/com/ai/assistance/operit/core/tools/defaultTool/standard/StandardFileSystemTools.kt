@@ -66,17 +66,22 @@ import com.ai.assistance.operit.core.config.FunctionalPrompts
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.data.preferences.FunctionalConfigManager
 import com.ai.assistance.operit.data.preferences.ModelConfigManager
-import com.ai.assistance.operit.terminal.data.PackageManagerType
-import com.ai.assistance.operit.terminal.TerminalManager
-import com.ai.assistance.operit.terminal.provider.filesystem.FileSystemProvider
-import com.ai.assistance.operit.terminal.provider.type.HiddenExecResult
-import com.ai.assistance.operit.terminal.utils.SSHFileConnectionManager
-import com.ai.assistance.operit.terminal.utils.SourceManager
+// Terminal module imports removed
 import com.ai.assistance.operit.core.tools.defaultTool.PathValidator
-import com.ai.assistance.operit.core.tools.system.Terminal
 import com.ai.assistance.operit.util.LocaleUtils
 import org.json.JSONObject
 import java.util.concurrent.atomic.AtomicInteger
+
+// Stub for terminal module types (terminal module removed)
+private data class HiddenExecResult(
+    val state: String = "error",
+    val output: String = "",
+    val error: String = "Terminal module not available",
+    val exitCode: Int = -1,
+    val rawOutputPreview: String = ""
+) {
+    val isOk: Boolean get() = false
+}
 
 /**
  * Collection of file system operation tools for the AI assistant These tools use Java File APIs for
@@ -106,47 +111,97 @@ open class StandardFileSystemTools(protected val context: Context) {
         ApiPreferences.getInstance(context)
     }
 
-    // SSH文件管理器（单例，懒加载）
-    private val sshFileManager by lazy {
-        SSHFileConnectionManager.getInstance(context)
+    // Terminal module removed - Linux file system tools no longer available
+    // Linux file system operations are now disabled
+
+    // Stub for Linux file system - throws exception if called
+    protected fun getLinuxFileSystem(): Nothing {
+        throw UnsupportedOperationException("Linux file system not available (terminal module removed)")
     }
 
-    // TerminalManager（单例，懒加载）
-    private val terminalManager by lazy {
-        TerminalManager.getInstance(context)
+    // Stub for Linux tools - returns error results
+    protected val linuxTools: LinuxFileSystemToolsStub by lazy {
+        LinuxFileSystemToolsStub()
     }
 
-    private val terminalSourceManager by lazy {
-        SourceManager(context)
-    }
-
-    private var lastLinuxFileSystemProviderLabel: String? = null
-
-    // Linux文件系统提供者，优先使用SSH连接，否则从TerminalManager获取
-    protected fun getLinuxFileSystem(): FileSystemProvider {
-        // 先尝试获取SSH连接的文件系统
-        val sshProvider = sshFileManager.getFileSystemProvider()
-        
-        // 如果SSH已登录，使用SSH文件系统
-        if (sshProvider != null) {
-            if (lastLinuxFileSystemProviderLabel != "ssh") {
-                AppLogger.d(TAG, "Using SSH file system provider")
-                lastLinuxFileSystemProviderLabel = "ssh"
-            }
-            return sshProvider
-        }
-        
-        // 否则使用本地Terminal的文件系统
-        if (lastLinuxFileSystemProviderLabel != "local") {
-            AppLogger.d(TAG, "Using local terminal file system provider")
-            lastLinuxFileSystemProviderLabel = "local"
-        }
-        return terminalManager.getFileSystemProvider()
-    }
-
-    // Linux文件系统工具实例
-    protected val linuxTools: LinuxFileSystemTools by lazy {
-        LinuxFileSystemTools(context)
+    // Stub class for LinuxFileSystemTools
+    protected class LinuxFileSystemToolsStub {
+        suspend fun listFiles(tool: AITool): ToolResult = ToolResult(
+            toolName = tool.name, success = false, result = StringResultData(""),
+            error = "Linux environment not available (terminal module removed)"
+        )
+        suspend fun readFileFull(tool: AITool): ToolResult = ToolResult(
+            toolName = tool.name, success = false, result = StringResultData(""),
+            error = "Linux environment not available (terminal module removed)"
+        )
+        suspend fun readFileBinary(tool: AITool): ToolResult = ToolResult(
+            toolName = tool.name, success = false, result = StringResultData(""),
+            error = "Linux environment not available (terminal module removed)"
+        )
+        suspend fun readFile(tool: AITool): ToolResult = ToolResult(
+            toolName = tool.name, success = false, result = StringResultData(""),
+            error = "Linux environment not available (terminal module removed)"
+        )
+        suspend fun readFilePart(tool: AITool): ToolResult = ToolResult(
+            toolName = tool.name, success = false, result = StringResultData(""),
+            error = "Linux environment not available (terminal module removed)"
+        )
+        suspend fun writeFile(tool: AITool): ToolResult = ToolResult(
+            toolName = tool.name, success = false, result = StringResultData(""),
+            error = "Linux environment not available (terminal module removed)"
+        )
+        suspend fun writeFileBinary(tool: AITool): ToolResult = ToolResult(
+            toolName = tool.name, success = false, result = StringResultData(""),
+            error = "Linux environment not available (terminal module removed)"
+        )
+        suspend fun deleteFile(tool: AITool): ToolResult = ToolResult(
+            toolName = tool.name, success = false, result = StringResultData(""),
+            error = "Linux environment not available (terminal module removed)"
+        )
+        suspend fun fileExists(tool: AITool): ToolResult = ToolResult(
+            toolName = tool.name, success = false, result = StringResultData(""),
+            error = "Linux environment not available (terminal module removed)"
+        )
+        suspend fun moveFile(tool: AITool): ToolResult = ToolResult(
+            toolName = tool.name, success = false, result = StringResultData(""),
+            error = "Linux environment not available (terminal module removed)"
+        )
+        suspend fun copyFile(tool: AITool): ToolResult = ToolResult(
+            toolName = tool.name, success = false, result = StringResultData(""),
+            error = "Linux environment not available (terminal module removed)"
+        )
+        suspend fun copyFile(tool: AITool, sourcePath: String, destPath: String, sourceEnv: String, destEnv: String, recursive: Boolean): ToolResult = ToolResult(
+            toolName = tool.name, success = false, result = StringResultData(""),
+            error = "Linux environment not available (terminal module removed)"
+        )
+        suspend fun makeDirectory(tool: AITool): ToolResult = ToolResult(
+            toolName = tool.name, success = false, result = StringResultData(""),
+            error = "Linux environment not available (terminal module removed)"
+        )
+        suspend fun findFiles(tool: AITool): ToolResult = ToolResult(
+            toolName = tool.name, success = false, result = StringResultData(""),
+            error = "Linux environment not available (terminal module removed)"
+        )
+        suspend fun fileInfo(tool: AITool): ToolResult = ToolResult(
+            toolName = tool.name, success = false, result = StringResultData(""),
+            error = "Linux environment not available (terminal module removed)"
+        )
+        suspend fun openFile(tool: AITool): ToolResult = ToolResult(
+            toolName = tool.name, success = false, result = StringResultData(""),
+            error = "Linux environment not available (terminal module removed)"
+        )
+        suspend fun grepCode(tool: AITool): ToolResult = ToolResult(
+            toolName = tool.name, success = false, result = StringResultData(""),
+            error = "Linux environment not available (terminal module removed)"
+        )
+        suspend fun grepContext(tool: AITool): ToolResult = ToolResult(
+            toolName = tool.name, success = false, result = StringResultData(""),
+            error = "Linux environment not available (terminal module removed)"
+        )
+        suspend fun shareFile(tool: AITool): ToolResult = ToolResult(
+            toolName = tool.name, success = false, result = StringResultData(""),
+            error = "Linux environment not available (terminal module removed)"
+        )
     }
 
     private val safTools: SafFileSystemTools by lazy {
@@ -157,9 +212,9 @@ open class StandardFileSystemTools(protected val context: Context) {
         return environment?.startsWith("repo:", ignoreCase = true) == true
     }
 
-    /** 检查是否是Linux环境 */
+    /** 检查是否是Linux环境 - 终端模块已移除，始终返回false */
     protected fun isLinuxEnvironment(environment: String?): Boolean {
-        return environment?.lowercase() == "linux"
+        return false // Terminal module removed, Linux environment not available
     }
 
     protected data class GrepContextCandidate(
@@ -492,15 +547,8 @@ open class StandardFileSystemTools(protected val context: Context) {
     }
 
     private fun buildRipgrepInstallCommand(): String {
-        val aptSource =
-            terminalSourceManager.getSelectedSource(PackageManagerType.APT)
-        val aptSourceCommand = terminalSourceManager.getAptSourceChangeCommand(aptSource)
-        return buildString {
-            appendLine(aptSourceCommand)
-            appendLine("export DEBIAN_FRONTEND=noninteractive")
-            appendLine("apt update")
-            appendLine("apt install -y ripgrep")
-        }.trim()
+        // Terminal module removed - ripgrep installation not available
+        return ""
     }
 
     private fun buildRipgrepInstallFailureMessage(output: String): String {
@@ -535,11 +583,10 @@ open class StandardFileSystemTools(protected val context: Context) {
         executorKey: String,
         timeoutMs: Long = 120000L
     ): HiddenExecResult {
-        val terminal = Terminal.getInstance(context)
-        return terminal.executeHiddenCommand(
-            command = command,
-            executorKey = executorKey,
-            timeoutMs = timeoutMs
+        // Terminal module removed - return error result
+        return HiddenExecResult(
+            state = "error",
+            error = "Terminal module not available"
         )
     }
 
@@ -1223,7 +1270,7 @@ open class StandardFileSystemTools(protected val context: Context) {
 
         // 如果是Linux环境，委托给LinuxFileSystemTools
         if (isLinuxEnvironment(environment)) {
-            return linuxTools.listFiles(tool)
+            return ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Linux environment not available (terminal module removed)")
         }
         if (isSafEnvironment(environment)) {
             return safTools.listFiles(tool)
@@ -1774,7 +1821,7 @@ open class StandardFileSystemTools(protected val context: Context) {
 
         // 如果是Linux环境，委托给LinuxFileSystemTools
         if (isLinuxEnvironment(environment)) {
-            return linuxTools.readFileFull(tool)
+            return ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Linux environment not available (terminal module removed)")
         }
 
         if (isSafEnvironment(environment)) {
@@ -1875,7 +1922,7 @@ open class StandardFileSystemTools(protected val context: Context) {
 
         // 如果是Linux环境，委托给LinuxFileSystemTools
         if (isLinuxEnvironment(environment)) {
-            return linuxTools.readFileBinary(tool)
+            return ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Linux environment not available (terminal module removed)")
         }
 
         if (isSafEnvironment(environment)) {
@@ -1936,7 +1983,7 @@ open class StandardFileSystemTools(protected val context: Context) {
 
         // 如果是Linux环境，委托给LinuxFileSystemTools
         if (isLinuxEnvironment(environment)) {
-            return linuxTools.readFile(tool)
+            return ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Linux environment not available (terminal module removed)")
         }
 
         if (isSafEnvironment(environment)) {
@@ -2054,7 +2101,7 @@ open class StandardFileSystemTools(protected val context: Context) {
 
         // 如果是Linux环境，委托给LinuxFileSystemTools
         if (isLinuxEnvironment(environment)) {
-            return linuxTools.readFilePart(tool)
+            return ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Linux environment not available (terminal module removed)")
         }
 
         if (isSafEnvironment(environment)) {
@@ -2175,7 +2222,7 @@ open class StandardFileSystemTools(protected val context: Context) {
 
         // 如果是Linux环境，委托给LinuxFileSystemTools
         if (isLinuxEnvironment(environment)) {
-            return linuxTools.writeFile(tool)
+            return ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Linux environment not available (terminal module removed)")
         }
         if (isSafEnvironment(environment)) {
             return safTools.writeFile(tool)
@@ -2312,7 +2359,7 @@ open class StandardFileSystemTools(protected val context: Context) {
 
         // 如果是Linux环境，委托给LinuxFileSystemTools
         if (isLinuxEnvironment(environment)) {
-            return linuxTools.writeFileBinary(tool)
+            return ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Linux environment not available (terminal module removed)")
         }
         if (isSafEnvironment(environment)) {
             return safTools.writeFileBinary(tool)
@@ -2428,7 +2475,7 @@ open class StandardFileSystemTools(protected val context: Context) {
 
         // 如果是Linux环境，委托给LinuxFileSystemTools
         if (isLinuxEnvironment(environment)) {
-            return linuxTools.deleteFile(tool)
+            return ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Linux environment not available (terminal module removed)")
         }
         if (isSafEnvironment(environment)) {
             return safTools.deleteFile(tool)
@@ -2553,7 +2600,7 @@ open class StandardFileSystemTools(protected val context: Context) {
 
         // 如果是Linux环境，委托给LinuxFileSystemTools
         if (isLinuxEnvironment(environment)) {
-            return linuxTools.fileExists(tool)
+            return ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Linux environment not available (terminal module removed)")
         }
         if (isSafEnvironment(environment)) {
             return safTools.fileExists(tool)
@@ -2622,7 +2669,7 @@ open class StandardFileSystemTools(protected val context: Context) {
 
         // 如果是Linux环境，委托给LinuxFileSystemTools
         if (isLinuxEnvironment(environment)) {
-            return linuxTools.moveFile(tool)
+            return ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Linux environment not available (terminal module removed)")
         }
 
         if (isSafEnvironment(environment)) {
@@ -2809,7 +2856,7 @@ open class StandardFileSystemTools(protected val context: Context) {
         destEnvironment: String,
         recursive: Boolean
     ): ToolResult {
-        // 目标路径保持原样，让 Linux 文件系统提供者处理 ~ 的展开
+        // Terminal module removed - Linux environment not supported
         val finalDestPath = destPath
 
         return try {
@@ -2818,12 +2865,23 @@ open class StandardFileSystemTools(protected val context: Context) {
                 "Cross-environment copy: $sourceEnvironment:$sourcePath -> $destEnvironment:$finalDestPath"
             )
 
-            // 1. 检查源文件是否存在
-            val sourceExists = if (isLinuxEnvironment(sourceEnvironment)) {
-                getLinuxFileSystem().exists(sourcePath)
-            } else {
-                File(sourcePath).exists()
+            // Linux environment not available - only Android path supported
+            if (isLinuxEnvironment(sourceEnvironment) || isLinuxEnvironment(destEnvironment)) {
+                return ToolResult(
+                    toolName = toolName,
+                    success = false,
+                    result = FileOperationData(
+                        operation = "copy",
+                        path = sourcePath,
+                        successful = false,
+                        details = "Linux environment not available (terminal module removed)"
+                    ),
+                    error = "Linux environment not available (terminal module removed)"
+                )
             }
+
+            // 1. 检查源文件是否存在
+            val sourceExists = File(sourcePath).exists()
 
             if (!sourceExists) {
                 return ToolResult(
@@ -2840,13 +2898,9 @@ open class StandardFileSystemTools(protected val context: Context) {
             }
 
             // 2. 检查是否是目录
-            val isDirectory = if (isLinuxEnvironment(sourceEnvironment)) {
-                getLinuxFileSystem().isDirectory(sourcePath)
-            } else {
-                File(sourcePath).isDirectory
-            }
+            val isDir = File(sourcePath).isDirectory
 
-            if (isDirectory) {
+            if (isDir) {
                 if (!recursive) {
                     return ToolResult(
                         toolName = toolName,
@@ -2872,85 +2926,18 @@ open class StandardFileSystemTools(protected val context: Context) {
             }
 
             // 3. 获取文件大小
-            val fileSize = if (isLinuxEnvironment(sourceEnvironment)) {
-                getLinuxFileSystem().getFileSize(sourcePath)
-            } else {
-                File(sourcePath).length()
-            }
+            val fileSize = File(sourcePath).length()
 
-            // 4. 统一分块传输（10MB 缓冲）
-            val BUFFER_SIZE = 10 * 1024 * 1024
+            // 4. 从 Android 读取并写入
+            val sourceFile = File(sourcePath)
             var totalBytes = 0L
-
-            if (isLinuxEnvironment(sourceEnvironment)) {
-                // 从 Linux 读取并写入
-                val content = getLinuxFileSystem().readFile(sourcePath) ?: return ToolResult(
-                    toolName = toolName,
-                    success = false,
-                    result = FileOperationData(
-                        operation = "copy",
-                        path = sourcePath,
-                        successful = false,
-                        details = "Failed to read source file"
-                    ),
-                    error = "Failed to read source file"
-                )
-                val bytes = content.toByteArray(Charsets.UTF_8)
-
-                if (isLinuxEnvironment(destEnvironment)) {
-                    val result = getLinuxFileSystem().writeFileBytes(finalDestPath, bytes)
-                    if (!result.success) {
-                        return ToolResult(
-                            toolName = toolName,
-                            success = false,
-                            result = FileOperationData(
-                                operation = "copy",
-                                path = sourcePath,
-                                successful = false,
-                                details = result.message
-                            ),
-                            error = result.message
-                        )
-                    }
-                } else {
-                    File(finalDestPath).apply { parentFile?.mkdirs() }.writeBytes(bytes)
-                }
-                totalBytes = bytes.size.toLong()
-            } else {
-                // 从 Android 读取并写入
-                val sourceFile = File(sourcePath)
-                sourceFile.inputStream().use { input ->
-                    val buffer = ByteArray(BUFFER_SIZE)
-                    val outputStream = if (isLinuxEnvironment(destEnvironment)) {
-                        java.io.ByteArrayOutputStream()
-                    } else {
-                        File(finalDestPath).apply { parentFile?.mkdirs() }.outputStream()
-                    }
-
-                    outputStream.use { output ->
-                        var bytesRead: Int
-                        while (input.read(buffer).also { bytesRead = it } != -1) {
-                            output.write(buffer, 0, bytesRead)
-                            totalBytes += bytesRead
-                        }
-                    }
-
-                    if (isLinuxEnvironment(destEnvironment)) {
-                        val bytes = (outputStream as java.io.ByteArrayOutputStream).toByteArray()
-                        val result = getLinuxFileSystem().writeFileBytes(finalDestPath, bytes)
-                        if (!result.success) {
-                            return ToolResult(
-                                toolName = toolName,
-                                success = false,
-                                result = FileOperationData(
-                                    operation = "copy",
-                                    path = sourcePath,
-                                    successful = false,
-                                    details = result.message
-                                ),
-                                error = result.message
-                            )
-                        }
+            sourceFile.inputStream().use { input ->
+                val buffer = ByteArray(10 * 1024 * 1024)
+                File(finalDestPath).apply { parentFile?.mkdirs() }.outputStream().use { output ->
+                    var bytesRead: Int
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        output.write(buffer, 0, bytesRead)
+                        totalBytes += bytesRead
                     }
                 }
             }
@@ -2994,7 +2981,6 @@ open class StandardFileSystemTools(protected val context: Context) {
         sourceEnvironment: String,
         destEnvironment: String
     ): ToolResult {
-        // 目标路径保持原样，让 Linux 文件系统提供者处理 ~ 的展开
         val finalDestPath = destPath
 
         return try {
@@ -3003,39 +2989,31 @@ open class StandardFileSystemTools(protected val context: Context) {
                 "Cross-environment directory copy: $sourceEnvironment:$sourcePath -> $destEnvironment:$finalDestPath"
             )
 
+            // Linux environment not available
+            if (isLinuxEnvironment(sourceEnvironment) || isLinuxEnvironment(destEnvironment)) {
+                return ToolResult(
+                    toolName = toolName,
+                    success = false,
+                    result = FileOperationData(
+                        operation = "copy",
+                        path = sourcePath,
+                        successful = false,
+                        details = "Linux environment not available (terminal module removed)"
+                    ),
+                    error = "Linux environment not available (terminal module removed)"
+                )
+            }
+
             // 1. 创建目标目录
-            if (isLinuxEnvironment(destEnvironment)) {
-                val result = getLinuxFileSystem().createDirectory(finalDestPath, createParents = true)
-                if (!result.success) {
-                    return ToolResult(
-                        toolName = toolName,
-                        success = false,
-                        result = FileOperationData(
-                            operation = "copy",
-                            path = sourcePath,
-                            successful = false,
-                            details = "Failed to create destination directory: ${result.message}"
-                        ),
-                        error = "Failed to create destination directory: ${result.message}"
-                    )
-                }
-            } else {
-                val destDir = File(finalDestPath)
-                if (!destDir.exists()) {
-                    destDir.mkdirs()
-                }
+            val destDir = File(finalDestPath)
+            if (!destDir.exists()) {
+                destDir.mkdirs()
             }
 
             // 2. 列出源目录内容
-            val entries = if (isLinuxEnvironment(sourceEnvironment)) {
-                getLinuxFileSystem().listDirectory(sourcePath)?.map { fileInfo ->
-                    Pair(fileInfo.name, fileInfo.isDirectory)
-                } ?: emptyList()
-            } else {
-                File(sourcePath).listFiles()?.map { file ->
-                    Pair(file.name, file.isDirectory)
-                } ?: emptyList()
-            }
+            val entries = File(sourcePath).listFiles()?.map { file ->
+                Pair(file.name, file.isDirectory)
+            } ?: emptyList()
 
             // 3. 递归复制每个条目
             var copiedFiles = 0
@@ -3331,7 +3309,7 @@ open class StandardFileSystemTools(protected val context: Context) {
 
         // 如果是Linux环境，委托给LinuxFileSystemTools
         if (isLinuxEnvironment(environment)) {
-            return linuxTools.makeDirectory(tool)
+            return ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Linux environment not available (terminal module removed)")
         }
         if (isSafEnvironment(environment)) {
             return safTools.makeDirectory(tool)
@@ -3452,7 +3430,7 @@ open class StandardFileSystemTools(protected val context: Context) {
 
         // 如果是Linux环境，委托给LinuxFileSystemTools
         if (isLinuxEnvironment(environment)) {
-            return linuxTools.findFiles(tool)
+            return ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Linux environment not available (terminal module removed)")
         }
         if (isSafEnvironment(environment)) {
             return safTools.findFiles(tool)
@@ -3739,7 +3717,7 @@ open class StandardFileSystemTools(protected val context: Context) {
 
         // 如果是Linux环境，委托给LinuxFileSystemTools
         if (isLinuxEnvironment(environment)) {
-            return linuxTools.fileInfo(tool)
+            return ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Linux environment not available (terminal module removed)")
         }
 
         if (isSafEnvironment(environment)) {
@@ -4767,7 +4745,7 @@ open class StandardFileSystemTools(protected val context: Context) {
 
         // 如果是Linux环境，委托给LinuxFileSystemTools
         if (isLinuxEnvironment(environment)) {
-            return linuxTools.openFile(tool)
+            return ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Linux environment not available (terminal module removed)")
         }
         PathValidator.validateAndroidPath(path, tool.name)?.let { return it }
 
@@ -4887,7 +4865,7 @@ open class StandardFileSystemTools(protected val context: Context) {
 
         // 如果是Linux环境，委托给LinuxFileSystemTools
         if (isLinuxEnvironment(environment)) {
-            return linuxTools.grepCode(tool)
+            return ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Linux environment not available (terminal module removed)")
         }
 
         if (isSafEnvironment(environment)) {
@@ -4939,7 +4917,7 @@ open class StandardFileSystemTools(protected val context: Context) {
         val maxResults = tool.parameters.find { it.name == "max_results" }?.value?.toIntOrNull() ?: 10
 
         if (isLinuxEnvironment(environment)) {
-            return linuxTools.grepContext(tool)
+            return ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Linux environment not available (terminal module removed)")
         }
 
         if (isSafEnvironment(environment)) {
@@ -5047,7 +5025,7 @@ open class StandardFileSystemTools(protected val context: Context) {
 
         // 如果是Linux环境，委托给LinuxFileSystemTools
         if (isLinuxEnvironment(environment)) {
-            return linuxTools.shareFile(tool)
+            return ToolResult(toolName = tool.name, success = false, result = StringResultData(""), error = "Linux environment not available (terminal module removed)")
         }
         PathValidator.validateAndroidPath(path, tool.name)?.let { return it }
 

@@ -62,7 +62,7 @@ class AssistantConfigViewModel(
                     when {
                         currentAvatar == null -> AvatarInstanceSettings()
                         persistedSettings != null -> persistedSettings
-                        currentAvatar.type == AvatarType.DRAGONBONES -> AvatarInstanceSettings(scale = 0.5f)
+                        currentAvatar.type == AvatarType.GLTF -> AvatarInstanceSettings(scale = 0.5f)
                         else -> AvatarInstanceSettings()
                     }
                 val currentConfig =

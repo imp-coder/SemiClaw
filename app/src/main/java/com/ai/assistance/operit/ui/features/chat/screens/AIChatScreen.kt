@@ -70,7 +70,7 @@ import com.ai.assistance.operit.ui.features.chat.components.ExportProgressDialog
 import com.ai.assistance.operit.ui.features.chat.components.WindowsExportDialog
 import com.ai.assistance.operit.ui.features.chat.webview.workspace.WorkspaceScreen
 import com.ai.assistance.operit.ui.features.chat.webview.WorkspaceFileSelector
-import com.ai.assistance.operit.ui.features.chat.webview.computer.ComputerScreen
+// import com.ai.assistance.operit.ui.features.chat.webview.computer.ComputerScreen // terminal module removed
 import com.ai.assistance.operit.ui.features.chat.util.ConfigurationStateHolder
 import com.ai.assistance.operit.ui.features.chat.viewmodel.ChatViewModel
 import com.ai.assistance.operit.ui.main.LocalTopBarActions
@@ -1063,16 +1063,16 @@ val actualViewModel: ChatViewModel = viewModel ?: viewModel { ChatViewModel(cont
             }
         }
 
-        // AI电脑模式作为浮层：关闭时完全移出组合，确保 SurfaceView 被释放，避免机型相关残影
-        if (showAiComputer) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clipToBounds()
-            ) {
-                ComputerScreen()
-            }
-        }
+        // AI电脑模式已移除 (terminal module deleted)
+        // if (showAiComputer) {
+        //     Box(
+        //         modifier = Modifier
+        //             .fillMaxSize()
+        //             .clipToBounds()
+        //     ) {
+        //         ComputerScreen()
+        //     }
+        // }
 
         AnimatedVisibility(
             visible = isWorkspacePreparing,

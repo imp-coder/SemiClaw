@@ -57,7 +57,7 @@ import com.ai.assistance.operit.ui.features.settings.screens.ToolPermissionSetti
 import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesGuideScreen
 import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.CustomHeadersSettingsScreen
-import com.ai.assistance.operit.ui.features.settings.screens.MnnModelDownloadScreen
+// import com.ai.assistance.operit.ui.features.settings.screens.MnnModelDownloadScreen // MNN module removed
 import com.ai.assistance.operit.ui.features.settings.screens.TokenUsageStatisticsScreen
 import com.ai.assistance.operit.ui.features.token.TokenConfigWebViewScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.AppPermissionsToolScreen
@@ -66,7 +66,7 @@ import com.ai.assistance.operit.ui.features.toolbox.screens.LogcatToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.ShellExecutorToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.StreamMarkdownDemoScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.TerminalAutoConfigToolScreen
-import com.ai.assistance.operit.ui.features.toolbox.screens.TerminalToolScreen
+// import com.ai.assistance.operit.ui.features.toolbox.screens.TerminalToolScreen // Terminal module removed
 import com.ai.assistance.operit.ui.features.toolbox.screens.ToolboxScreen
 import com.ai.assistance.operit.ui.common.composedsl.ToolPkgComposeDslToolScreen
 import com.ai.assistance.operit.ui.features.toolbox.screens.UIDebuggerToolScreen
@@ -773,7 +773,8 @@ sealed class Screen(
             onError: (String) -> Unit,
             onGestureConsumed: (Boolean) -> Unit
         ) {
-            MnnModelDownloadScreen(onBackPressed = onGoBack)
+            // MNN module removed - MnnModelDownloadScreen disabled
+            androidx.compose.material3.Text("MNN Model Download has been removed")
         }
     }
     
@@ -1096,7 +1097,8 @@ sealed class Screen(
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
-            TerminalToolScreen(navController = navController)
+            // Terminal module removed - TerminalToolScreen disabled
+            androidx.compose.material3.Text("Terminal has been removed")
         }
     }
 
@@ -1113,7 +1115,8 @@ sealed class Screen(
                 onError: (String) -> Unit,
                 onGestureConsumed: (Boolean) -> Unit
         ) {
-            TerminalToolScreen(navController = navController, forceShowSetup = true)
+            // Terminal module removed - TerminalToolScreen disabled
+            androidx.compose.material3.Text("Terminal Setup has been removed")
         }
     }
 

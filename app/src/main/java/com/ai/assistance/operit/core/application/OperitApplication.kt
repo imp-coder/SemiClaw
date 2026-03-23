@@ -491,11 +491,11 @@ class OperitApplication : Application(), ImageLoaderFactory, WorkConfiguration.P
             AppLogger.e(TAG, "终止时停止 AIForegroundService 失败: ${e.message}", e)
         }
 
-        // 清理终端管理器和SSH连接
+        // 清理终端管理器和SSH连接 - Terminal module removed
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                Terminal.getInstance(applicationContext).destroy()
-                AppLogger.d(TAG, "应用终止，已清理所有终端会话和SSH连接")
+                // Terminal.getInstance(applicationContext).destroy() // terminal module removed
+                AppLogger.d(TAG, "应用终止")
             }
         } catch (e: Exception) {
             AppLogger.e(TAG, "清理终端管理器失败: ${e.message}", e)

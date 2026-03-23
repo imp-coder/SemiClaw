@@ -226,7 +226,7 @@ fun AvatarConfigSection(
                     valueRange = -500f..500f
                 )
 
-                if (currentAvatarConfig.type == AvatarType.MMD) {
+                if (currentAvatarConfig.type == AvatarType.GLTF) {
                     val cameraPitch =
                         currentSettings.customSettings[AvatarSettingKeys.MMD_INITIAL_ROTATION_X] ?: 0f
                     val initialRotationY =
