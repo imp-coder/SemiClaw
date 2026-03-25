@@ -294,7 +294,7 @@
     <string name="workflow_trigger_config_title">触发配置</string>
     <string name="workflow_trigger_config_json_label">触发配置 (JSON)</string>
     <string name="workflow_trigger_config_json_placeholder">{"key": "value"}</string>
-    <string name="workflow_speech_trigger_help">说明：语音触发基于后台语音识别（STT）输出的文本事件（partial/final）来匹配 pattern。需要开启“始终监听”且唤醒识别模式为“STT”。如果当前使用“个人化模板唤醒”，由于不产生 STT 文本事件，该触发器不会生效。</string>
+    <string name="workflow_speech_trigger_help">说明：语音触发基于后台语音识别（STT）输出的文本事件（partial/final）来匹配 pattern。需要开启"始终监听"且唤醒识别模式为"STT"。如果当前使用"个人化模板唤醒"，由于不产生 STT 文本事件，该触发器不会生效。</string>
 
     <string name="workflow_select_predecessor_node">选择前置节点</string>
     <string name="workflow_no_available_predecessor_nodes">无可用前置节点</string>
@@ -427,7 +427,7 @@
     <string name="avatar_import_methods_desc">- 直接选文件：.glb / .gltf / .mp4\n- ZIP 导入：DragonBones、WebP、MP4、MMD 或多文件 glTF 包</string>
     <string name="import_structure_guide_tap_to_expand">导入结构指南（点击展开）</string>
     <string name="import_structure_guide_tap_to_collapse">导入结构指南（点击收起）</string>
-    <string name="import_structure_guide_content">这是“导入包”的目录结构（ZIP 或选中文件内部），不是应用内部存储。\n\nDragonBones（.zip）\n  my_dragonbones.zip\n    any_folder_name/\n      hero_ske.json\n      hero_tex.json\n      hero_tex.png\n  要求：ske/tex json/png 文件名前缀一致。\n\nWebP（.zip）\n  my_webp.zip\n    any_folder_name/\n      idle.webp\n      talking.webp\n      happy.webp\n  要求：至少包含一个 .webp 文件。\n\nMP4\n  方式 A（直接文件）:\n    avatar.mp4\n  方式 B（.zip）:\n    my_mp4.zip\n      any_folder_name/\n        idle.mp4\n        talking.mp4\n        happy.mp4\n  要求：至少包含一个 .mp4 文件。\n\nMMD（.zip）\n  my_mmd.zip\n    any_folder_name/\n      character.pmx（或 .pmd）\n      motions/idle.vmd（可选）\n      textures/...\n  要求：保持 PMX/PMD 引用的相对路径不变。\n\nglTF\n  方式 A（直接文件）:\n    avatar.glb\n  方式 B（多文件 glTF 使用 .zip）:\n    my_gltf.zip\n      any_folder_name/\n        avatar.gltf\n        avatar.bin\n        textures/...\n  要求：保持 .gltf 引用的相对路径不变。</string>
+    <string name="import_structure_guide_content">这是"导入包"的目录结构（ZIP 或选中文件内部），不是应用内部存储。\n\nDragonBones（.zip）\n  my_dragonbones.zip\n    any_folder_name/\n      hero_ske.json\n      hero_tex.json\n      hero_tex.png\n  要求：ske/tex json/png 文件名前缀一致。\n\nWebP（.zip）\n  my_webp.zip\n    any_folder_name/\n      idle.webp\n      talking.webp\n      happy.webp\n  要求：至少包含一个 .webp 文件。\n\nMP4\n  方式 A（直接文件）:\n    avatar.mp4\n  方式 B（.zip）:\n    my_mp4.zip\n      any_folder_name/\n        idle.mp4\n        talking.mp4\n        happy.mp4\n  要求：至少包含一个 .mp4 文件。\n\nMMD（.zip）\n  my_mmd.zip\n    any_folder_name/\n      character.pmx（或 .pmd）\n      motions/idle.vmd（可选）\n      textures/...\n  要求：保持 PMX/PMD 引用的相对路径不变。\n\nglTF\n  方式 A（直接文件）:\n    avatar.glb\n  方式 B（多文件 glTF 使用 .zip）:\n    my_gltf.zip\n      any_folder_name/\n        avatar.gltf\n        avatar.bin\n        textures/...\n  要求：保持 .gltf 引用的相对路径不变。</string>
     <string name="enter">进入</string>
     <string name="about_avatar_formats">本应用支持多种虚拟形象格式，包括DragonBones。以下是制作和导入模型的说明。</string>
     <string name="dragon_bones_config">DragonBones配置</string>
@@ -1317,7 +1317,7 @@
     <string name="output_tokens">累计出: %1$s</string>
     <string name="context_window">请求: %1$s</string>
     <string name="auto_approve">自动批准:</string>
-    <string name="auto_approve_desc">用于控制 AI 工具调用时的全局默认策略：开启后，默认直接执行所有工具调用而不再弹出确认；你在“设置 - 工具权限管理”中为单个工具设置的例外规则仍然会优先生效。关闭后，默认对所有工具调用都弹出确认。</string>
+    <string name="auto_approve_desc">用于控制 AI 工具调用时的全局默认策略：开启后，默认直接执行所有工具调用而不再弹出确认；你在"设置 - 工具权限管理"中为单个工具设置的例外规则仍然会优先生效。关闭后，默认对所有工具调用都弹出确认。</string>
     <string name="enabled">已开启</string>
     <string name="ask">询问</string>
     <string name="ai_planning_mode">深度搜索:</string>
@@ -1523,7 +1523,7 @@
     <string name="tool_prompt_manager_title">工具提示词管理</string>
     <string name="manage_packages">管理包</string>
     <string name="disable_user_preference_description">禁用用户偏好描述</string>
-    <string name="disable_user_preference_description_desc">禁用后，系统提示词中不再附加“User preference description”段落</string>
+    <string name="disable_user_preference_description_desc">禁用后，系统提示词中不再附加"User preference description"段落</string>
     <string name="disable_latex_description">禁用 LaTeX 描述</string>
     <string name="disable_latex_description_desc">禁用后，系统提示词中不再包含 LaTeX 公式格式说明</string>
     <string name="reply_message">回复</string>
@@ -2063,7 +2063,7 @@
     <string name="autoglm_status_running">正在执行一键配置，请稍候...</string>
     <string name="autoglm_status_success">已完成 AutoGLM 一键配置：
 - 已创建或更新 AutoGLM UI 控制器模型配置（autoglm-phone, 智谱）
-- 已将“UI 控制器”功能切换为该配置
+- 已将"UI 控制器"功能切换为该配置
 - 已关闭 Automatic_ui_base，打开 Automatic_ui_subagent
 
 现在可以在对话界面使用 AutoGLM 模式了。</string>
@@ -2693,9 +2693,9 @@
     <string name="test">测试</string>
     <string name="expand_desc">展开</string>
     <string name="selected_desc">已选择</string>
-    <string name="functional_config_warning_image_unsupported">警告：当前所选模型未启用“支持识图”，图片识别可能不可用。请更换支持视觉的模型并开启“模型支持识图”。</string>
-    <string name="functional_config_warning_audio_unsupported">警告：当前所选模型未启用“支持音频解析”，音频识别/转写可能不可用。请更换支持音频输入/转写的模型并开启“模型支持音频解析”。</string>
-    <string name="functional_config_warning_video_unsupported">警告：当前所选模型未启用“支持视频解析”，视频理解可能不可用。请更换支持视频/图像输入的模型并开启“模型支持视频解析”。</string>
+    <string name="functional_config_warning_image_unsupported">警告：当前所选模型未启用"支持识图"，图片识别可能不可用。请更换支持视觉的模型并开启"模型支持识图"。</string>
+    <string name="functional_config_warning_audio_unsupported">警告：当前所选模型未启用"支持音频解析"，音频识别/转写可能不可用。请更换支持音频输入/转写的模型并开启"模型支持音频解析"。</string>
+    <string name="functional_config_warning_video_unsupported">警告：当前所选模型未启用"支持视频解析"，视频理解可能不可用。请更换支持视频/图像输入的模型并开启"模型支持视频解析"。</string>
     <string name="function_type_chat">对话功能</string>
     <string name="function_type_summary">对话总结</string>
     <string name="function_type_problem_library">问题库管理</string>
@@ -2713,7 +2713,7 @@
     <string name="function_desc_summary">生成对话总结，方便追踪重要信息</string>
     <string name="function_desc_problem_library">用于问题库的分析和管理</string>
     <string name="function_desc_file_binding">处理文件内容的智能绑定与混合，提供更精确的代码处理能力。建议使用快速的廉价模型如Gemini Flash，不建议使用DeepSeek R1</string>
-    <string name="function_desc_ui_controller">用于UI界面的自动遍历与操作，对应的 UI 控制器模型仅在用户明确要求使用“智能体”控制时才会启用，例如可选择 autoglm 等专用模型。</string>
+    <string name="function_desc_ui_controller">用于UI界面的自动遍历与操作，对应的 UI 控制器模型仅在用户明确要求使用"智能体"控制时才会启用，例如可选择 autoglm 等专用模型。</string>
     <string name="function_desc_translation">提供多语言翻译功能，支持文本内容的语言转换。建议使用支持多语言的模型。</string>
     <string name="function_desc_grep">用于grep_context的检索规划与结果筛选（多轮grep_code）</string>
     <string name="function_desc_role_response_planner">用于在群组中动态决定本轮发言顺序与跳过策略，支持多轮讨论</string>
@@ -4326,7 +4326,7 @@
 
     <!-- llama.cpp 本地推理 -->
     <string name="llama_local_model_tip">本地运行模型理解能力较差，建议关闭记忆链接、开启禁用工具进行对话</string>
-    <string name="llama_local_model_download_tip">llama.cpp 模型需要自行下载（.gguf）。请将模型文件放入以下文件夹，然后在“模型名称”中填写文件名：</string>
+    <string name="llama_local_model_download_tip">llama.cpp 模型需要自行下载（.gguf）。请将模型文件放入以下文件夹，然后在"模型名称"中填写文件名：</string>
     <string name="llama_local_model_dir">默认模型目录：%1$s</string>
     <string name="llama_select_downloaded_model">选择已下载的模型</string>
     <string name="llama_thread_count">线程数</string>
@@ -6963,7 +6963,12 @@
     <string name="workflow_cancel_requested">已发送取消请求</string>
     <string name="workflow_not_running">工作流当前未在执行</string>
     <string name="workflow_error_cancel_failed">取消工作流失败</string>
-    <string name="workflow_already_running">工作流“%1$s”正在执行中</string>
-    <string name="workflow_log_node_cancelled">节点“%1$s”执行已取消</string>
-    <string name="workflow_log_execution_cancelled">工作流“%1$s”执行已取消</string>
+    <string name="workflow_already_running">工作流"%1$s"正在执行中</string>
+    <string name="workflow_log_node_cancelled">节点"%1$s"执行已取消</string>
+    <string name="workflow_log_execution_cancelled">工作流"%1$s"执行已取消</string>
+
+    <!-- Feishu Integration -->
+    <string name="feishu_settings">飞书集成</string>
+    <string name="feishu_settings_subtitle">配置飞书API，支持发送消息、管理任务等</string>
+    <string name="settings_section_integrations">集成设置</string>
 </resources>

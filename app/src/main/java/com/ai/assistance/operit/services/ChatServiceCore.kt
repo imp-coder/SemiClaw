@@ -460,10 +460,115 @@ class ChatServiceCore(
             messageProcessingDelegate.setSpeakMessageHandler(handler)
         }
     }
-    
+
     /** 重新加载聊天消息（智能合并） */
     suspend fun reloadChatMessagesSmart(chatId: String) {
         chatHistoryDelegate.reloadChatMessagesSmart(chatId)
+    }
+
+    /**
+     * 发送消息并获取完整回复（用于外部集成，如飞书）
+     *
+     * @param message 用户消息
+     * @param chatId 可选的聊天ID，用于保持上下文
+     * @return AI 的完整回复文本
+     */
+    suspend fun sendMessageAndGetReply(
+        message: String,
+        chatId: String? = null
+    ): String {
+        val service = enhancedAiService ?: EnhancedAIService.getInstance(context)
+
+        // 获取聊天历史（如果有指定 chatId）
+        val history = if (chatId != null) {
+            chatHistoryDelegate.getChatHistory(chatId)
+                .map { Pair(it.sender, it.content) }
+        } else {
+            emptyList()
+        }
+
+        // 使用配置的上下文长度计算 maxTokens
+        val maxTokens = (apiConfigDelegate.contextLength.value * 1024).toInt()
+        val tokenUsageThreshold = apiConfigDelegate.summaryTokenThreshold.value.toDouble()
+
+        // 发送消息并收集流式响应
+        val responseBuilder = StringBuilder()
+        val stream = service.sendMessage(
+            message = message,
+            chatId = chatId,
+            chatHistory = history,
+            promptFunctionType = com.ai.assistance.operit.data.model.PromptFunctionType.CHAT,
+            maxTokens = maxTokens,
+            tokenUsageThreshold = tokenUsageThreshold
+        )
+
+        stream.collect { chunk ->
+            responseBuilder.append(chunk)
+        }
+
+        return responseBuilder.toString().trim()
+    }
+
+    /**
+     * 发送消息并流式回调每个 chunk（用于外部集成，如飞书）
+     *
+     * @param message 用户消息
+     * @param onChunk 每个 chunk 的回调
+     * @param chatId 可选的聊天ID
+     * @return AI 的完整回复文本（已清理格式）
+     */
+    suspend fun sendMessageWithStreaming(
+        message: String,
+        onChunk: (String) -> Unit,
+        chatId: String? = null
+    ): String {
+        val service = enhancedAiService ?: EnhancedAIService.getInstance(context)
+
+        val history = if (chatId != null) {
+            chatHistoryDelegate.getChatHistory(chatId)
+                .map { Pair(it.sender, it.content) }
+        } else {
+            emptyList()
+        }
+
+        val maxTokens = (apiConfigDelegate.contextLength.value * 1024).toInt()
+        val tokenUsageThreshold = apiConfigDelegate.summaryTokenThreshold.value.toDouble()
+
+        val responseBuilder = StringBuilder()
+        val stream = service.sendMessage(
+            message = message,
+            chatId = chatId,
+            chatHistory = history,
+            promptFunctionType = com.ai.assistance.operit.data.model.PromptFunctionType.CHAT,
+            maxTokens = maxTokens,
+            tokenUsageThreshold = tokenUsageThreshold
+        )
+
+        stream.collect { chunk ->
+            // 过滤掉不需要的标签
+            val cleanedChunk = cleanResponseText(chunk)
+            if (cleanedChunk.isNotEmpty()) {
+                responseBuilder.append(cleanedChunk)
+                onChunk(cleanedChunk)
+            }
+        }
+
+        return cleanResponseText(responseBuilder.toString()).trim()
+    }
+
+    /**
+     * 清理响应文本，移除 think 标签和 status 标签
+     */
+    private fun cleanResponseText(text: String): String {
+        var result = text
+        // 移除 <think>...</think> 标签及其内容
+        result = result.replace(Regex("<think>.*?</think>", RegexOption.DOT_MATCHES_ALL), "")
+        // 移除 <status ...>...</status> 标签及其内容
+        result = result.replace(Regex("<status[^>]*>.*?</status>", RegexOption.DOT_MATCHES_ALL), "")
+        // 移除单独的标签
+        result = result.replace(Regex("</?think>"), "")
+        result = result.replace(Regex("</?status[^>]*>"), "")
+        return result
     }
 }
 

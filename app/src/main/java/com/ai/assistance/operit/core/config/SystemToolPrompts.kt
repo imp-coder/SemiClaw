@@ -500,6 +500,183 @@ object SystemToolPrompts {
         categoryFooter = "\n注意：记忆库和用户性格档案会在你输出任务完成标志后由独立的系统自动更新。但是，如果需要立即管理记忆或更新用户偏好，请直接使用相应的工具。"
     )
 
+    // ==================== 飞书工具 ====================
+    val feishuTools = SystemToolPromptCategory(
+        categoryName = "Feishu (Lark) Integration Tools",
+        tools = listOf(
+            ToolPrompt(
+                name = "feishu_send_message",
+                description = "Send a message to a Feishu chat. Requires Feishu App ID and App Secret to be configured in settings.",
+                parametersStructured = listOf(
+                    ToolParameterSchema(name = "receive_id", type = "string", description = "optional, the receiver ID (chat ID or user ID). Uses default chat if not provided.", required = false),
+                    ToolParameterSchema(name = "receive_id_type", type = "string", description = "optional, receiver type: chat_id (default), open_id, user_id, union_id, email", required = false, default = "chat_id"),
+                    ToolParameterSchema(name = "msg_type", type = "string", description = "optional, message type: text (default), post, image, file, etc.", required = false, default = "text"),
+                    ToolParameterSchema(name = "content", type = "string", description = "required, the message content", required = true)
+                ),
+                notes = """
+**Important Notes for Private Messages (p2p):**
+1. Users must FIRST send a message to the bot before the bot can reply
+2. For private messages, you may need to use open_id instead of chat_id
+3. If the bot has no conversations yet, it cannot initiate private messages
+
+**For Group Messages:**
+- The bot must be added to the group chat first
+- Use the group's chat_id as receive_id
+"""
+            ),
+            ToolPrompt(
+                name = "feishu_get_chats",
+                description = "Get the list of Feishu chats that the bot has access to.",
+                parametersStructured = listOf(
+                    ToolParameterSchema(name = "page_size", type = "integer", description = "optional, number of chats to return, default 20", required = false, default = "20")
+                )
+            ),
+            ToolPrompt(
+                name = "feishu_get_messages",
+                description = "Get messages from a specific Feishu chat.",
+                parametersStructured = listOf(
+                    ToolParameterSchema(name = "chat_id", type = "string", description = "required, the chat ID to get messages from", required = true),
+                    ToolParameterSchema(name = "page_size", type = "integer", description = "optional, number of messages to return, default 20", required = false, default = "20")
+                )
+            ),
+            ToolPrompt(
+                name = "feishu_create_document",
+                description = "Create a new Feishu document.",
+                parametersStructured = listOf(
+                    ToolParameterSchema(name = "title", type = "string", description = "required, the document title", required = true),
+                    ToolParameterSchema(name = "content", type = "string", description = "optional, the document content", required = false)
+                )
+            ),
+            ToolPrompt(
+                name = "feishu_create_task",
+                description = "Create a new Feishu task.",
+                parametersStructured = listOf(
+                    ToolParameterSchema(name = "name", type = "string", description = "required, the task name", required = true),
+                    ToolParameterSchema(name = "description", type = "string", description = "optional, the task description", required = false),
+                    ToolParameterSchema(name = "due_time", type = "integer", description = "optional, due time as Unix timestamp (seconds)", required = false)
+                )
+            ),
+            ToolPrompt(
+                name = "feishu_get_tasks",
+                description = "Get the list of Feishu tasks.",
+                parametersStructured = listOf(
+                    ToolParameterSchema(name = "page_size", type = "integer", description = "optional, number of tasks to return, default 20", required = false, default = "20")
+                )
+            ),
+            ToolPrompt(
+                name = "feishu_set_default_chat",
+                description = "Set the default chat ID for sending messages when receive_id is not provided.",
+                parametersStructured = listOf(
+                    ToolParameterSchema(name = "chat_id", type = "string", description = "required, the chat ID to set as default", required = true)
+                )
+            ),
+            ToolPrompt(
+                name = "feishu_status",
+                description = "Get the current Feishu configuration status.",
+                parametersStructured = listOf()
+            ),
+            ToolPrompt(
+                name = "feishu_test_connection",
+                description = "Test the Feishu API connection to verify credentials are correct.",
+                parametersStructured = listOf()
+            ),
+            ToolPrompt(
+                name = "feishu_get_p2p_users",
+                description = "Get list of users who have sent private messages to the bot. Use this to find chat_id for p2p messaging.",
+                parametersStructured = listOf()
+            )
+        ),
+        categoryFooter = "\nNote: Feishu tools require App ID and App Secret to be configured in app settings. Get credentials from Feishu Open Platform (https://open.feishu.cn).\n\nFor private messages: Users must FIRST send a message to the bot before the bot can reply. Use feishu_get_p2p_users to find available p2p chat IDs."
+    )
+
+    val feishuToolsCn = SystemToolPromptCategory(
+        categoryName = "飞书集成工具",
+        tools = listOf(
+            ToolPrompt(
+                name = "feishu_send_message",
+                description = "向飞书聊天发送消息。需要在设置中配置飞书 App ID 和 App Secret。",
+                parametersStructured = listOf(
+                    ToolParameterSchema(name = "receive_id", type = "string", description = "可选，接收者ID（聊天ID或用户ID）。未提供时使用默认聊天。", required = false),
+                    ToolParameterSchema(name = "receive_id_type", type = "string", description = "可选，接收者类型：chat_id（默认）、open_id、user_id、union_id、email", required = false, default = "chat_id"),
+                    ToolParameterSchema(name = "msg_type", type = "string", description = "可选，消息类型：text（默认）、post、image、file等", required = false, default = "text"),
+                    ToolParameterSchema(name = "content", type = "string", description = "必需，消息内容", required = true)
+                ),
+                notes = """
+**私聊消息重要说明：**
+1. 用户必须先主动给机器人发一条消息，机器人才可以回复
+2. 私聊可能需要使用 open_id 而不是 chat_id
+3. 如果机器人没有和任何用户建立过会话，则无法主动发起私聊
+
+**群聊消息说明：**
+- 机器人必须先被加入群聊
+- 使用群聊的 chat_id 作为 receive_id
+"""
+            ),
+            ToolPrompt(
+                name = "feishu_get_chats",
+                description = "获取机器人可访问的飞书聊天列表。",
+                parametersStructured = listOf(
+                    ToolParameterSchema(name = "page_size", type = "integer", description = "可选，返回的聊天数量，默认20", required = false, default = "20")
+                )
+            ),
+            ToolPrompt(
+                name = "feishu_get_messages",
+                description = "获取指定飞书聊天的消息列表。",
+                parametersStructured = listOf(
+                    ToolParameterSchema(name = "chat_id", type = "string", description = "必需，要获取消息的聊天ID", required = true),
+                    ToolParameterSchema(name = "page_size", type = "integer", description = "可选，返回的消息数量，默认20", required = false, default = "20")
+                )
+            ),
+            ToolPrompt(
+                name = "feishu_create_document",
+                description = "创建新的飞书文档。",
+                parametersStructured = listOf(
+                    ToolParameterSchema(name = "title", type = "string", description = "必需，文档标题", required = true),
+                    ToolParameterSchema(name = "content", type = "string", description = "可选，文档内容", required = false)
+                )
+            ),
+            ToolPrompt(
+                name = "feishu_create_task",
+                description = "创建新的飞书任务。",
+                parametersStructured = listOf(
+                    ToolParameterSchema(name = "name", type = "string", description = "必需，任务名称", required = true),
+                    ToolParameterSchema(name = "description", type = "string", description = "可选，任务描述", required = false),
+                    ToolParameterSchema(name = "due_time", type = "integer", description = "可选，截止时间的Unix时间戳（秒）", required = false)
+                )
+            ),
+            ToolPrompt(
+                name = "feishu_get_tasks",
+                description = "获取飞书任务列表。",
+                parametersStructured = listOf(
+                    ToolParameterSchema(name = "page_size", type = "integer", description = "可选，返回的任务数量，默认20", required = false, default = "20")
+                )
+            ),
+            ToolPrompt(
+                name = "feishu_set_default_chat",
+                description = "设置默认聊天ID，发送消息时未提供receive_id时使用。",
+                parametersStructured = listOf(
+                    ToolParameterSchema(name = "chat_id", type = "string", description = "必需，要设置为默认的聊天ID", required = true)
+                )
+            ),
+            ToolPrompt(
+                name = "feishu_status",
+                description = "获取当前飞书配置状态。",
+                parametersStructured = listOf()
+            ),
+            ToolPrompt(
+                name = "feishu_test_connection",
+                description = "测试飞书API连接，验证凭证是否正确。",
+                parametersStructured = listOf()
+            ),
+            ToolPrompt(
+                name = "feishu_get_p2p_users",
+                description = "获取已给机器人发过私聊消息的用户列表。用于查找私聊的chat_id。",
+                parametersStructured = listOf()
+            )
+        ),
+        categoryFooter = "\n注意：飞书工具需要在应用设置中配置 App ID 和 App Secret。可从飞书开放平台 (https://open.feishu.cn) 获取凭证。\n\n私聊消息说明：用户必须先主动给机器人发消息，机器人才能回复。使用 feishu_get_p2p_users 查找可用的私聊chat_id。"
+    )
+
     private val internalToolCategoriesEn: List<SystemToolPromptCategory> = SystemToolPromptsInternal.internalToolCategoriesEn
     private val internalToolCategoriesCn: List<SystemToolPromptCategory> = SystemToolPromptsInternal.internalToolCategoriesCn
     
@@ -554,7 +731,8 @@ object SystemToolPrompts {
             basicTools,
             adjustedFileSystemTools,
             httpTools,
-            memoryTools
+            memoryTools,
+            feishuTools
         )
     }
 
@@ -629,7 +807,8 @@ object SystemToolPrompts {
             basicToolsCn,
             adjustedFileSystemTools,
             httpToolsCn,
-            memoryToolsCn
+            memoryToolsCn,
+            feishuToolsCn
         )
     }
 

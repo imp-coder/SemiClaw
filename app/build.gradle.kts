@@ -432,4 +432,7 @@ dependencies {
     // Glance for Widgets (Compose for Widgets)
     implementation(libs.glance.appwidget)
     implementation(libs.glance.material3)
+
+    // Protobuf for Feishu PBBP2 protocol
+    implementation("com.google.protobuf:protobuf-javalite:3.25.1")
 }

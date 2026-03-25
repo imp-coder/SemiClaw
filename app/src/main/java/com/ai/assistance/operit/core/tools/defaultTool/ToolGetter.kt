@@ -198,4 +198,13 @@ object ToolGetter {
     fun getSoftwareSettingsModifyTools(context: Context): StandardSoftwareSettingsModifyTools {
         return StandardSoftwareSettingsModifyTools(context)
     }
+
+    /**
+     * 获取飞书工具
+     * @param context 应用上下文
+     * @return 飞书工具实现
+     */
+    fun getFeishuTools(context: Context): com.ai.assistance.operit.services.FeishuTools {
+        return com.ai.assistance.operit.services.FeishuTools(context)
+    }
 }

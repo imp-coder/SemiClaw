@@ -57,6 +57,7 @@ import com.ai.assistance.operit.ui.features.settings.screens.ToolPermissionSetti
 import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesGuideScreen
 import com.ai.assistance.operit.ui.features.settings.screens.UserPreferencesSettingsScreen
 import com.ai.assistance.operit.ui.features.settings.screens.CustomHeadersSettingsScreen
+import com.ai.assistance.operit.ui.features.settings.screens.FeishuSettingsScreen
 // import com.ai.assistance.operit.ui.features.settings.screens.MnnModelDownloadScreen // MNN module removed
 import com.ai.assistance.operit.ui.features.settings.screens.TokenUsageStatisticsScreen
 import com.ai.assistance.operit.ui.features.token.TokenConfigWebViewScreen
@@ -462,7 +463,8 @@ sealed class Screen(
                     navigateToWaifuModeSettings = { navigateTo(WaifuModeSettings) },
                     navigateToTokenUsageStatistics = { navigateTo(TokenUsageStatistics) },
                     navigateToContextSummarySettings = { navigateTo(ContextSummarySettings) },
-                    navigateToLayoutAdjustmentSettings = { navigateTo(LayoutAdjustmentSettings) }
+                    navigateToLayoutAdjustmentSettings = { navigateTo(LayoutAdjustmentSettings) },
+                    navigateToFeishuSettings = { navigateTo(FeishuSettings) }
             )
         }
     }
@@ -949,6 +951,23 @@ sealed class Screen(
                 onGestureConsumed: (Boolean) -> Unit
         ) {
             LayoutAdjustmentSettingsScreen(onNavigateBack = onGoBack)
+        }
+    }
+
+    data object FeishuSettings :
+            Screen(parentScreen = Settings, navItem = NavItem.Settings, titleRes = R.string.feishu_settings) {
+        @Composable
+        override fun Content(
+                navController: NavController,
+                navigateTo: ScreenNavigationHandler,
+                updateNavItem: NavItemChangeHandler,
+                onGoBack: () -> Unit,
+                hasBackgroundImage: Boolean,
+                onLoading: (Boolean) -> Unit,
+                onError: (String) -> Unit,
+                onGestureConsumed: (Boolean) -> Unit
+        ) {
+            FeishuSettingsScreen(onNavigateBack = onGoBack)
         }
     }
 
