@@ -39,10 +39,16 @@ object ToolGetter {
 
     /**
      * 获取UI工具
+     * 优先检测无障碍服务是否可用，如果可用则使用AccessibilityUITools
      * @param context 应用上下文
      * @return 根据首选权限级别的UI工具实现
      */
     fun getUITools(context: Context): StandardUITools {
+        // 首先检测本地无障碍服务是否可用，如果可用则优先使用AccessibilityUITools
+        if (com.ai.assistance.operit.core.services.OperitAccessibilityService.isAvailable()) {
+            return AccessibilityUITools(context)
+        }
+
         return when (androidPermissionPreferences.getPreferredPermissionLevel()) {
             AndroidPermissionLevel.ROOT -> RootUITools(context)
             AndroidPermissionLevel.ADMIN -> AdminUITools(context)

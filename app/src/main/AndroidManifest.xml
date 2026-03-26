@@ -419,6 +419,20 @@
             </intent-filter>
         </receiver>
         
+        <!-- 集成的无障碍服务 - 直接在主应用中提供UI自动化功能 -->
+        <service
+            android:name=".core.services.OperitAccessibilityService"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
         <!-- Voice Interaction Service for system default assistant -->
         <service
             android:name=".services.assistant.OperitVoiceInteractionService"

@@ -567,17 +567,24 @@ open class StandardUITools(protected val context: Context) : ToolImplementations
 
             val shortName = System.currentTimeMillis().toString().takeLast(4)
             val file = File(screenshotDir, "$shortName.png")
+            AppLogger.d(TAG, "captureScreenshotToFile: 目标文件: ${file.absolutePath}")
 
             // 1) Check if we have a valid MediaProjection token
             if (MediaProjectionHolder.mediaProjection == null) {
                 AppLogger.d(TAG, "captureScreenshotToFile: Requesting MediaProjection permission...")
-                withContext(Dispatchers.Main) {
-                    ScreenCaptureActivity.cleanStart(context)
+                try {
+                    withContext(Dispatchers.Main) {
+                        ScreenCaptureActivity.cleanStart(context)
+                    }
+                } catch (e: Exception) {
+                    AppLogger.e(TAG, "captureScreenshotToFile: 启动ScreenCaptureActivity失败", e)
+                    return Pair(null, null)
                 }
-                
+
                 // Wait for permission (poll for 10 seconds)
                 var retries = 0
                 while (MediaProjectionHolder.mediaProjection == null && retries < 20) {
+                    AppLogger.d(TAG, "captureScreenshotToFile: 等待MediaProjection授权... ($retries/20)")
                     delay(500)
                     retries++
                 }
@@ -586,13 +593,13 @@ open class StandardUITools(protected val context: Context) : ToolImplementations
                    AppLogger.w(TAG, "captureScreenshotToFile: MediaProjection permission not granted or timed out")
                    return Pair(null, null)
                 }
+                AppLogger.d(TAG, "captureScreenshotToFile: MediaProjection授权成功")
+            } else {
+                AppLogger.d(TAG, "captureScreenshotToFile: 已有MediaProjection")
             }
 
             // 2) Use MediaProjectionCaptureManager
             try {
-                // We create a temporary manager for this capture
-                // In a real app, you might want to keep this alive if you do continuous capture,
-                // but for one-off screenshots, creating/releasing is safer to avoid resource leaks.
                 val projection = MediaProjectionHolder.mediaProjection
                 if (projection != null) {
                     val manager = if (cachedMediaProjectionCaptureManager == null || cachedMediaProjection !== projection) {
@@ -608,12 +615,14 @@ open class StandardUITools(protected val context: Context) : ToolImplementations
                         cachedMediaProjectionCaptureManager!!
                     }
 
+                    AppLogger.d(TAG, "captureScreenshotToFile: 设置VirtualDisplay...")
                     manager.setupDisplay()
                     delay(200)
 
                     var success = false
                     var attempt = 0
                     while (!success && attempt < 3) {
+                        AppLogger.d(TAG, "captureScreenshotToFile: 尝试截图 #${attempt + 1}")
                         success = manager.captureToFile(file)
                         if (!success) {
                             delay(120)
@@ -622,7 +631,7 @@ open class StandardUITools(protected val context: Context) : ToolImplementations
                     }
 
                     if (success) {
-                        AppLogger.d(TAG, "captureScreenshotToFile: captured via MediaProjectionCaptureManager")
+                        AppLogger.d(TAG, "captureScreenshotToFile: 截图成功，文件: ${file.absolutePath}")
                         val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                         BitmapFactory.decodeFile(file.absolutePath, options)
                         val dimensions = if (options.outWidth > 0 && options.outHeight > 0) {
@@ -632,8 +641,10 @@ open class StandardUITools(protected val context: Context) : ToolImplementations
                         }
                         return Pair(file.absolutePath, dimensions)
                     } else {
-                        AppLogger.w(TAG, "captureScreenshotToFile: MediaProjectionCaptureManager capture failed")
+                        AppLogger.w(TAG, "captureScreenshotToFile: MediaProjectionCaptureManager capture failed after $attempt attempts")
                     }
+                } else {
+                    AppLogger.w(TAG, "captureScreenshotToFile: projection is null")
                 }
             } catch (e: Exception) {
                 AppLogger.e(TAG, "captureScreenshotToFile: Error using MediaProjectionCaptureManager", e)

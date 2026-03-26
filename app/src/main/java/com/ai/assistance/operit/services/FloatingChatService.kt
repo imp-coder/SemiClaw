@@ -864,14 +864,14 @@ class FloatingChatService : Service(), FloatingWindowCallback {
                               userMessage.contains("screenshot") ||
                               userMessage.contains("屏幕")
 
-        // 记录截图目录初始状态
-        val screenshotDir = java.io.File("/sdcard/DCIM/Screenshots")
+        // 记录截图目录初始状态（使用实际的截图保存路径）
+        val screenshotDir = com.ai.assistance.operit.util.OperitPaths.cleanOnExitDir()
         val existingScreenshots = if (screenshotDir.exists()) {
             screenshotDir.listFiles()?.map { it.name }?.toSet() ?: emptySet()
         } else {
             emptySet()
         }
-        AppLogger.d(TAG, "needScreenshot=$needScreenshot, 已有截图数: ${existingScreenshots.size}")
+        AppLogger.d(TAG, "needScreenshot=$needScreenshot, 截图目录: ${screenshotDir.absolutePath}, 已有截图数: ${existingScreenshots.size}")
 
         // 使用 chatCore 发送消息到界面
         try {
@@ -920,7 +920,7 @@ class FloatingChatService : Service(), FloatingWindowCallback {
             // 监听界面回复并发送到飞书
             var lastAiContent = ""
             var screenshotSent = false
-            val maxWaitTime = 180000L
+            val maxWaitTime = 600000L  // 10 分钟，适合复杂任务
             val startTime = System.currentTimeMillis()
             var loopCount = 0
 
@@ -932,10 +932,8 @@ class FloatingChatService : Service(), FloatingWindowCallback {
                 val currentMsgCount = currentMessages.size
                 val isProcessing = chatCore.isLoading.value
 
-                // 每 10 次循环打印一次状态
-                if (loopCount % 10 == 0) {
-                    AppLogger.d(TAG, "循环 #$loopCount: 消息=$currentMsgCount, 初始=$newInitialCount, 处理中=$isProcessing")
-                }
+                // 每次循环都打印状态（调试用）
+                AppLogger.d(TAG, "循环 #$loopCount: 消息=$currentMsgCount, 初始=$newInitialCount, 处理中=$isProcessing")
 
                 // 检查是否有新的截图
                 if (needScreenshot && !screenshotSent) {
@@ -1027,34 +1025,37 @@ class FloatingChatService : Service(), FloatingWindowCallback {
                     // AI 消息的 sender 可能是 "assistant" 或 "ai"
                     val lastAiMessage = newMessages.lastOrNull { it.sender == "assistant" || it.sender == "ai" }
 
-                    if (lastAiMessage != null) {
-                        AppLogger.d(TAG, "找到 AI 回复: ${lastAiMessage.content.take(50)}...")
-                        lastAiContent = lastAiMessage.content
+                    if (lastAiMessage != null && lastAiMessage.content.isNotBlank()) {
+                        val content = lastAiMessage.content
+                        // 只有当内容不是以思考标签开头时才更新（说明是最终回复）
+                        if (!content.trim().startsWith(" ByteArrayInputStream")) {
+                            lastAiContent = content
+                            AppLogger.d(TAG, "更新 AI 回复内容: ${content.take(50)}...")
+                        }
                     }
                 }
 
                 // 如果处理已完成，发送最终结果并退出
                 if (!isProcessing) {
-                    AppLogger.d(TAG, "处理已完成，等待 AI 回复...")
-                    // 等待 AI 回复被添加到历史
-                    var waitCount = 0
-                    while (waitCount < 20) {
-                        val finalMessages = chatCore.chatHistory.value
-                        if (finalMessages.size > newInitialCount) {
-                            val newMessages = finalMessages.drop(newInitialCount)
-                            val lastAiMessage = newMessages.lastOrNull { it.sender == "assistant" || it.sender == "ai" }
-                            if (lastAiMessage != null) {
-                                val cleanContent = cleanFeishuResponseText(lastAiMessage.content)
-                                AppLogger.d(TAG, "发送最终 AI 回复到飞书: ${cleanContent.take(50)}...")
-                                feishuService.sendMessage(feishuChatId, cleanContent)
-                                break
-                            }
+                    // 等待一下确保内容更新
+                    delay(500)
+                    val finalMessages = chatCore.chatHistory.value
+                    if (finalMessages.size > newInitialCount) {
+                        val newMessages = finalMessages.drop(newInitialCount)
+                        val lastAiMessage = newMessages.lastOrNull { it.sender == "assistant" || it.sender == "ai" }
+                        if (lastAiMessage != null) {
+                            lastAiContent = lastAiMessage.content
                         }
-                        delay(200)
-                        waitCount++
                     }
-                    if (waitCount >= 20) {
-                        AppLogger.w(TAG, "等待 AI 回复超时")
+
+                    if (lastAiContent.isNotBlank()) {
+                        AppLogger.d(TAG, "处理已完成，发送最终结果")
+                        val cleanContent = cleanFeishuResponseText(lastAiContent)
+                        val contentToSend = if (cleanContent.isNotBlank()) cleanContent else lastAiContent
+                        AppLogger.d(TAG, "发送到飞书: ${contentToSend.take(50)}...")
+                        feishuService.sendMessage(feishuChatId, contentToSend)
+                    } else {
+                        AppLogger.w(TAG, "处理完成但无 AI 回复内容")
                     }
                     break
                 }

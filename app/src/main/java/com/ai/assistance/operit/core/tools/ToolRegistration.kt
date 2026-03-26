@@ -9,6 +9,7 @@ import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.integrations.tasker.triggerAIAgentAction
 import com.ai.assistance.operit.services.FloatingChatService
 import com.ai.assistance.operit.ui.common.displays.VirtualDisplayOverlay
+import com.ai.assistance.operit.util.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.last
@@ -1811,16 +1812,26 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             descriptionGenerator = { _ -> s(R.string.toolreg_capture_screenshot_desc) },
             executor = { tool ->
                 runBlocking(Dispatchers.IO) {
+                    AppLogger.d("ToolRegistration", "capture_screenshot 工具被调用")
                     executeUiToolWithVisibility(
                         tool = tool,
                         showStatusIndicator = false,
                         delayMs = 200
                     ) { t ->
-                        val (path, _) = uiTools.captureScreenshot(t)
-                        if (path.isNullOrBlank()) {
-                            ToolResult(toolName = t.name, success = false, result = StringResultData(""), error = "Screenshot failed")
-                        } else {
-                            ToolResult(toolName = t.name, success = true, result = StringResultData(path), error = null)
+                        AppLogger.d("ToolRegistration", "capture_screenshot: 调用 uiTools.captureScreenshot")
+                        try {
+                            val (path, _) = uiTools.captureScreenshot(t)
+                            AppLogger.d("ToolRegistration", "capture_screenshot: 返回路径: $path")
+                            if (path.isNullOrBlank()) {
+                                AppLogger.w("ToolRegistration", "capture_screenshot: 截图失败，路径为空")
+                                ToolResult(toolName = t.name, success = false, result = StringResultData(""), error = "Screenshot failed: path is null")
+                            } else {
+                                AppLogger.d("ToolRegistration", "capture_screenshot: 截图成功")
+                                ToolResult(toolName = t.name, success = true, result = StringResultData(path), error = null)
+                            }
+                        } catch (e: Exception) {
+                            AppLogger.e("ToolRegistration", "capture_screenshot: 截图异常", e)
+                            ToolResult(toolName = t.name, success = false, result = StringResultData(""), error = "Screenshot failed: ${e.message}")
                         }
                     }
                 }
