@@ -6980,4 +6980,9 @@
     <string name="target_character_group_optional">Target Character Group (Optional)</string>
     <string name="unbound_character_group">Unbound Character Group</string>
     <string name="unbound_chats_select_group">%1$d chat(s) need to be rebound to a character group. Please select the target character group:</string>
+
+    <!-- Feishu Integration -->
+    <string name="feishu_settings">Feishu Integration</string>
+    <string name="feishu_settings_subtitle">Configure Feishu API for messaging, tasks, and more</string>
+    <string name="settings_section_integrations">Integrations</string>
 </resources>

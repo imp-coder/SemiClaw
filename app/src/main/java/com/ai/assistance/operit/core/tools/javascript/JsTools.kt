@@ -495,6 +495,12 @@ fun getJsToolsDefinition(): String {
                 getPageInfo: () => toolCall("get_page_info"),
                 tap: (x, y) => toolCall("tap", { x, y }),
                 longPress: (x, y) => toolCall("long_press", { x, y }),
+                // 截图 - 适配所有权限级别
+                takeScreenshot: (filePath) => {
+                    const params = {};
+                    if (filePath) params.file_path = filePath;
+                    return toolCall("capture_screenshot", params);
+                },
                 // 增强的clickElement方法，支持多种参数类型
                 clickElement: function(param1, param2, param3) {
                     // 根据参数类型和数量判断调用方式

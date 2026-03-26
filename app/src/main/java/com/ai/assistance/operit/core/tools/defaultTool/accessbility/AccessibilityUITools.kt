@@ -3,11 +3,13 @@ package com.ai.assistance.operit.core.tools.defaultTool.accessbility
 import android.content.Context
 import android.graphics.BitmapFactory
 import com.ai.assistance.operit.util.AppLogger
+import com.ai.assistance.operit.core.services.OperitAccessibilityService
 import com.ai.assistance.operit.core.tools.SimplifiedUINode
 import com.ai.assistance.operit.core.tools.StringResultData
 import com.ai.assistance.operit.core.tools.UIActionResultData
 import com.ai.assistance.operit.core.tools.UIPageResultData
 import com.ai.assistance.operit.core.tools.defaultTool.standard.StandardUITools
+import com.ai.assistance.operit.core.tools.system.MediaProjectionHolder
 import com.ai.assistance.operit.data.model.AITool
 import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.data.repository.UIHierarchyManager
@@ -33,8 +35,14 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
 
     /**
      * 检查无障碍服务是否正在运行
+     * 优先检查本地集成的服务，然后检查外部AIDL服务
      */
     private suspend fun isAccessibilityServiceEnabled(): Boolean {
+        // 首先检查本地集成的无障碍服务
+        if (OperitAccessibilityService.isAvailable()) {
+            return true
+        }
+        // 回退到外部AIDL服务
         return UIHierarchyManager.isAccessibilityServiceEnabled(context)
     }
 
@@ -50,6 +58,7 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
     
     /**
      * 获取UI层次结构，失败时重试
+     * 优先从本地集成的服务获取，然后回退到外部AIDL服务
      * @return UI层次结构XML字符串，获取失败返回空字符串
      */
     private suspend fun getUIHierarchyWithRetry(): String {
@@ -57,18 +66,28 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
         var uiXml = ""
 
         while (retryCount < MAX_RETRY_COUNT) {
+            // 首先尝试从本地集成的服务获取
+            val localService = OperitAccessibilityService.instance
+            if (localService != null && OperitAccessibilityService.isServiceConnected) {
+                uiXml = localService.getUiHierarchy()
+                if (uiXml.isNotEmpty()) {
+                    return uiXml
+                }
+            }
+
+            // 回退到外部AIDL服务
             uiXml = UIHierarchyManager.getUIHierarchy(context)
             if (uiXml.isNotEmpty()) {
                 return uiXml
             }
-            
+
             retryCount++
             if (retryCount < MAX_RETRY_COUNT) {
                 AppLogger.d(TAG, "获取UI层次结构失败，正在重试 #$retryCount")
                 delay(RETRY_DELAY_MS)
             }
         }
-        
+
         AppLogger.w(TAG, "获取UI层次结构失败，已重试${MAX_RETRY_COUNT}次")
         return uiXml
     }
@@ -137,14 +156,14 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
                 AppLogger.w(TAG, "无法获取UI层次结构XML，使用默认值。")
                 focusInfo.packageName = "android"
                 // 即使XML获取失败，仍然尝试获取Activity名称
-                focusInfo.activityName = UIHierarchyManager.getCurrentActivityName(context) ?: "ForegroundActivity"
+                focusInfo.activityName = getCurrentActivityName()
                 return focusInfo
             }
 
             // 2. 从XML中解析包名
             val (packageName, _) = UIHierarchyManager.extractWindowInfo(hierarchyXml)
             // 3. 从服务中直接获取当前Activity名称
-            val activityName = UIHierarchyManager.getCurrentActivityName(context)
+            val activityName = getCurrentActivityName()
 
             focusInfo.packageName = packageName
             focusInfo.activityName = activityName // 使用从服务获取的Activity名称
@@ -159,6 +178,18 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
             focusInfo.activityName = "ForegroundActivity"
         }
         return focusInfo
+    }
+
+    /** 获取当前Activity名称，优先从本地服务获取 */
+    private suspend fun getCurrentActivityName(): String? {
+        // 首先尝试从本地集成的服务获取
+        val localService = OperitAccessibilityService.instance
+        if (localService != null && OperitAccessibilityService.isServiceConnected) {
+            val name = localService.getCurrentActivityName()
+            if (name.isNotEmpty()) return name
+        }
+        // 回退到外部AIDL服务
+        return UIHierarchyManager.getCurrentActivityName(context)
     }
 
     /** 简化XML布局为节点树 */
@@ -379,8 +410,16 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
             withAccessibilityCheck(tool) {
         val text = tool.parameters.find { it.name == "text" }?.value ?: ""
 
-            // 通过UIHierarchyManager请求远程服务找到焦点节点的ID
-            val focusedNodeId = UIHierarchyManager.findFocusedNodeId(context)
+            // 首先尝试使用本地集成的服务
+            val localService = OperitAccessibilityService.instance
+            val focusedNodeId = if (localService != null && OperitAccessibilityService.isServiceConnected) {
+                AppLogger.d(TAG, "使用本地无障碍服务查找焦点节点")
+                localService.findFocusedNodeId()
+            } else {
+                // 回退到外部AIDL服务
+                UIHierarchyManager.findFocusedNodeId(context)
+            }
+
             if (focusedNodeId.isNullOrEmpty()) {
                     return@withAccessibilityCheck ToolResult(
                         toolName = tool.name,
@@ -396,8 +435,14 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
             operationOverlay.showTextInput(rect.centerX(), rect.centerY(), text)
             }
 
-            // 通过UIHierarchyManager请求远程服务设置文本
-            val result = UIHierarchyManager.setTextOnNode(context, focusedNodeId, text)
+            // 设置文本
+            val result = if (localService != null && OperitAccessibilityService.isServiceConnected) {
+                AppLogger.d(TAG, "使用本地无障碍服务设置文本")
+                localService.setTextOnNode(focusedNodeId, text)
+            } else {
+                // 回退到外部AIDL服务
+                UIHierarchyManager.setTextOnNode(context, focusedNodeId, text)
+            }
 
                 if (result) {
                 // 成功后主动隐藏overlay
@@ -617,6 +662,13 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
     // 使用无障碍服务执行点击的辅助方法
     private suspend fun performAccessibilityClick(x: Int, y: Int): Boolean {
         return try {
+            // 首先尝试使用本地集成的服务
+            val localService = OperitAccessibilityService.instance
+            if (localService != null && OperitAccessibilityService.isServiceConnected) {
+                AppLogger.d(TAG, "使用本地无障碍服务执行点击")
+                return localService.performClick(x, y)
+            }
+            // 回退到外部AIDL服务
             UIHierarchyManager.performClick(context, x, y)
         } catch (e: Exception) {
             AppLogger.e(TAG, "Error performing accessibility click", e)
@@ -627,6 +679,13 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
     // 使用无障碍服务执行长按的辅助方法
     private suspend fun performAccessibilityLongPress(x: Int, y: Int): Boolean {
         return try {
+            // 首先尝试使用本地集成的服务
+            val localService = OperitAccessibilityService.instance
+            if (localService != null && OperitAccessibilityService.isServiceConnected) {
+                AppLogger.d(TAG, "使用本地无障碍服务执行长按")
+                return localService.performLongPress(x, y)
+            }
+            // 回退到外部AIDL服务
             UIHierarchyManager.performLongPress(context, x, y)
         } catch (e: Exception) {
             AppLogger.e(TAG, "Error performing accessibility long press", e)
@@ -643,6 +702,13 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
             duration: Int
     ): Boolean {
         return try {
+            // 首先尝试使用本地集成的服务
+            val localService = OperitAccessibilityService.instance
+            if (localService != null && OperitAccessibilityService.isServiceConnected) {
+                AppLogger.d(TAG, "使用本地无障碍服务执行滑动")
+                return localService.performSwipe(startX, startY, endX, endY, duration.toLong())
+            }
+            // 回退到外部AIDL服务
             UIHierarchyManager.performSwipe(context, startX, startY, endX, endY, duration.toLong())
         } catch (e: Exception) {
             AppLogger.e(TAG, "Error performing accessibility swipe", e)
@@ -676,8 +742,15 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
                     }
 
             if (keyAction != null) {
-                // 通过UIHierarchyManager请求远程服务执行操作
-                val success = UIHierarchyManager.performGlobalAction(context, keyAction)
+                // 首先尝试使用本地集成的服务
+                val localService = OperitAccessibilityService.instance
+                val success = if (localService != null && OperitAccessibilityService.isServiceConnected) {
+                    AppLogger.d(TAG, "使用本地无障碍服务执行全局操作")
+                    localService.executeGlobalAction(keyAction)
+                } else {
+                    // 回退到外部AIDL服务
+                    UIHierarchyManager.performGlobalAction(context, keyAction)
+                }
                 return if (success) {
                     ToolResult(
                             toolName = tool.name,
@@ -722,28 +795,76 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
 
     override suspend fun captureScreenshotToFile(tool: AITool): Pair<String?, Pair<Int, Int>?> {
         return try {
-            val screenshotDir = OperitPaths.cleanOnExitDir()
+            AppLogger.d(TAG, "captureScreenshotToFile: 开始截图 (Accessibility模式)")
 
+            val screenshotDir = OperitPaths.cleanOnExitDir()
             val shortName = System.currentTimeMillis().toString().takeLast(4)
             val file = File(screenshotDir, "$shortName.png")
+            AppLogger.d(TAG, "captureScreenshotToFile: 目标文件: ${file.absolutePath}")
 
-            val success = UIHierarchyManager.takeScreenshot(context, file.absolutePath, "png")
-            if (!success) {
-                AppLogger.w(TAG, "captureScreenshotForAgent: AIDL takeScreenshot failed")
-                return Pair(null, null)
+            // 1) 首先尝试使用本地集成的无障碍服务截图
+            val localService = OperitAccessibilityService.instance
+            if (localService != null && OperitAccessibilityService.isServiceConnected) {
+                AppLogger.d(TAG, "captureScreenshotToFile: 尝试本地无障碍服务截图...")
+                var localSuccess = false
+                try {
+                    localSuccess = localService.takeScreenshot(file.absolutePath, "png")
+                    AppLogger.d(TAG, "captureScreenshotToFile: 本地服务截图返回: $localSuccess, 文件存在: ${file.exists()}, 文件大小: ${if (file.exists()) file.length() else 0}")
+                } catch (e: Exception) {
+                    AppLogger.w(TAG, "captureScreenshotToFile: 本地服务截图异常: ${e.message}")
+                }
+
+                if (localSuccess && file.exists() && file.length() > 0) {
+                    AppLogger.d(TAG, "captureScreenshotToFile: 本地无障碍服务截图成功")
+                    val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeFile(file.absolutePath, options)
+                    val dimensions = if (options.outWidth > 0 && options.outHeight > 0) {
+                        Pair(options.outWidth, options.outHeight)
+                    } else {
+                        null
+                    }
+                    return Pair(file.absolutePath, dimensions)
+                }
             }
 
-            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeFile(file.absolutePath, options)
-            val dimensions = if (options.outWidth > 0 && options.outHeight > 0) {
-                Pair(options.outWidth, options.outHeight)
-            } else {
-                null
+            // 2) 尝试通过外部AIDL服务截图
+            AppLogger.d(TAG, "captureScreenshotToFile: 尝试外部AIDL服务截图...")
+            var providerSuccess = false
+            try {
+                providerSuccess = UIHierarchyManager.takeScreenshot(context, file.absolutePath, "png")
+                AppLogger.d(TAG, "captureScreenshotToFile: AIDL服务截图返回: $providerSuccess, 文件存在: ${file.exists()}, 文件大小: ${if (file.exists()) file.length() else 0}")
+            } catch (e: Exception) {
+                AppLogger.w(TAG, "captureScreenshotToFile: AIDL服务截图异常: ${e.message}")
             }
 
-            Pair(file.absolutePath, dimensions)
+            if (providerSuccess && file.exists() && file.length() > 0) {
+                AppLogger.d(TAG, "captureScreenshotToFile: AIDL服务截图成功")
+                val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeFile(file.absolutePath, options)
+                val dimensions = if (options.outWidth > 0 && options.outHeight > 0) {
+                    Pair(options.outWidth, options.outHeight)
+                } else {
+                    null
+                }
+                return Pair(file.absolutePath, dimensions)
+            }
+
+            // 3) 所有无障碍截图失败，使用 MediaProjection
+            AppLogger.d(TAG, "captureScreenshotToFile: 无障碍截图失败，准备使用 MediaProjection")
+            AppLogger.d(TAG, "captureScreenshotToFile: 当前 MediaProjection 状态: ${if (MediaProjectionHolder.mediaProjection != null) "已有token" else "无token"}")
+
+            // 强制清除旧的 MediaProjection，确保重新请求授权
+            if (MediaProjectionHolder.mediaProjection != null) {
+                AppLogger.d(TAG, "captureScreenshotToFile: 清除旧的 MediaProjection token")
+                try {
+                    MediaProjectionHolder.mediaProjection?.stop()
+                } catch (_: Exception) {}
+                MediaProjectionHolder.mediaProjection = null
+            }
+
+            return super.captureScreenshotToFile(tool)
         } catch (e: Exception) {
-            AppLogger.e(TAG, "captureScreenshot via accessibility failed", e)
+            AppLogger.e(TAG, "captureScreenshot failed", e)
             Pair(null, null)
         }
     }

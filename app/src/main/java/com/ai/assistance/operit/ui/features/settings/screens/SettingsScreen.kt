@@ -64,7 +64,8 @@ fun SettingsScreen(
         navigateToWaifuModeSettings: () -> Unit,
         navigateToTokenUsageStatistics: () -> Unit,
         navigateToContextSummarySettings: () -> Unit,
-        navigateToLayoutAdjustmentSettings: () -> Unit
+        navigateToLayoutAdjustmentSettings: () -> Unit,
+        navigateToFeishuSettings: () -> Unit
 ) {
         val context = LocalContext.current
         val apiPreferences = remember { ApiPreferences.getInstance(context) }
@@ -302,6 +303,20 @@ fun SettingsScreen(
                                 subtitle = stringResource(id = R.string.settings_token_usage_subtitle),
                                 icon = Icons.Default.Analytics,
                                 onClick = navigateToTokenUsageStatistics
+                        )
+                }
+
+                // ======= 集成设置 =======
+                SettingsSection(
+                        title = stringResource(id = R.string.settings_section_integrations),
+                        icon = Icons.Default.Extension,
+                        containerColor = cardContainerColor
+                ) {
+                        CompactSettingsItem(
+                                title = stringResource(id = R.string.feishu_settings),
+                                subtitle = stringResource(id = R.string.feishu_settings_subtitle),
+                                icon = Icons.Default.Message,
+                                onClick = navigateToFeishuSettings
                         )
                 }
 

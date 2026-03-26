@@ -9,6 +9,7 @@ import com.ai.assistance.operit.data.model.ToolResult
 import com.ai.assistance.operit.integrations.tasker.triggerAIAgentAction
 import com.ai.assistance.operit.services.FloatingChatService
 import com.ai.assistance.operit.ui.common.displays.VirtualDisplayOverlay
+import com.ai.assistance.operit.util.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.last
@@ -1811,16 +1812,26 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             descriptionGenerator = { _ -> s(R.string.toolreg_capture_screenshot_desc) },
             executor = { tool ->
                 runBlocking(Dispatchers.IO) {
+                    AppLogger.d("ToolRegistration", "capture_screenshot 工具被调用")
                     executeUiToolWithVisibility(
                         tool = tool,
                         showStatusIndicator = false,
                         delayMs = 200
                     ) { t ->
-                        val (path, _) = uiTools.captureScreenshot(t)
-                        if (path.isNullOrBlank()) {
-                            ToolResult(toolName = t.name, success = false, result = StringResultData(""), error = "Screenshot failed")
-                        } else {
-                            ToolResult(toolName = t.name, success = true, result = StringResultData(path), error = null)
+                        AppLogger.d("ToolRegistration", "capture_screenshot: 调用 uiTools.captureScreenshot")
+                        try {
+                            val (path, _) = uiTools.captureScreenshot(t)
+                            AppLogger.d("ToolRegistration", "capture_screenshot: 返回路径: $path")
+                            if (path.isNullOrBlank()) {
+                                AppLogger.w("ToolRegistration", "capture_screenshot: 截图失败，路径为空")
+                                ToolResult(toolName = t.name, success = false, result = StringResultData(""), error = "Screenshot failed: path is null")
+                            } else {
+                                AppLogger.d("ToolRegistration", "capture_screenshot: 截图成功")
+                                ToolResult(toolName = t.name, success = true, result = StringResultData(path), error = null)
+                            }
+                        } catch (e: Exception) {
+                            AppLogger.e("ToolRegistration", "capture_screenshot: 截图异常", e)
+                            ToolResult(toolName = t.name, success = false, result = StringResultData(""), error = "Screenshot failed: ${e.message}")
                         }
                     }
                 }
@@ -1926,5 +1937,105 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
                 val ffmpegConvertTool = ToolGetter.getFFmpegConvertToolExecutor(context)
                 ffmpegConvertTool.invoke(tool)
             }
+    )
+
+    // ========== 飞书工具 ==========
+    val feishuTools = ToolGetter.getFeishuTools(context)
+
+    // 发送飞书消息
+    handler.registerTool(
+            name = "feishu_send_message",
+            descriptionGenerator = { tool ->
+                val receiveId = tool.parameters.find { it.name == "receive_id" }?.value
+                val content = tool.parameters.find { it.name == "content" }?.value ?: ""
+                val preview = if (content.length > 30) "${content.take(30)}..." else content
+                if (receiveId.isNullOrBlank()) {
+                    "Send Feishu message: $preview"
+                } else {
+                    "Send Feishu message to $receiveId: $preview"
+                }
+            },
+            executor = { tool -> runBlocking(Dispatchers.IO) { feishuTools.sendFeishuMessage(tool) } }
+    )
+
+    // 获取飞书聊天列表
+    handler.registerTool(
+            name = "feishu_get_chats",
+            descriptionGenerator = { tool ->
+                val pageSize = tool.parameters.find { it.name == "page_size" }?.value ?: "20"
+                "Get Feishu chat list (page_size=$pageSize)"
+            },
+            executor = { tool -> runBlocking(Dispatchers.IO) { feishuTools.getFeishuChats(tool) } }
+    )
+
+    // 获取飞书消息列表
+    handler.registerTool(
+            name = "feishu_get_messages",
+            descriptionGenerator = { tool ->
+                val chatId = tool.parameters.find { it.name == "chat_id" }?.value ?: ""
+                "Get Feishu messages from chat: ${chatId.take(8)}..."
+            },
+            executor = { tool -> runBlocking(Dispatchers.IO) { feishuTools.getFeishuMessages(tool) } }
+    )
+
+    // 创建飞书文档
+    handler.registerTool(
+            name = "feishu_create_document",
+            descriptionGenerator = { tool ->
+                val title = tool.parameters.find { it.name == "title" }?.value ?: ""
+                "Create Feishu document: $title"
+            },
+            executor = { tool -> runBlocking(Dispatchers.IO) { feishuTools.createFeishuDocument(tool) } }
+    )
+
+    // 创建飞书任务
+    handler.registerTool(
+            name = "feishu_create_task",
+            descriptionGenerator = { tool ->
+                val name = tool.parameters.find { it.name == "name" }?.value ?: ""
+                "Create Feishu task: $name"
+            },
+            executor = { tool -> runBlocking(Dispatchers.IO) { feishuTools.createFeishuTask(tool) } }
+    )
+
+    // 获取飞书任务列表
+    handler.registerTool(
+            name = "feishu_get_tasks",
+            descriptionGenerator = { tool ->
+                val pageSize = tool.parameters.find { it.name == "page_size" }?.value ?: "20"
+                "Get Feishu task list (page_size=$pageSize)"
+            },
+            executor = { tool -> runBlocking(Dispatchers.IO) { feishuTools.getFeishuTasks(tool) } }
+    )
+
+    // 设置默认飞书聊天
+    handler.registerTool(
+            name = "feishu_set_default_chat",
+            descriptionGenerator = { tool ->
+                val chatId = tool.parameters.find { it.name == "chat_id" }?.value ?: ""
+                "Set default Feishu chat: ${chatId.take(8)}..."
+            },
+            executor = { tool -> runBlocking(Dispatchers.IO) { feishuTools.setDefaultFeishuChat(tool) } }
+    )
+
+    // 获取飞书配置状态
+    handler.registerTool(
+            name = "feishu_status",
+            descriptionGenerator = { _ -> "Get Feishu configuration status" },
+            executor = { tool -> runBlocking(Dispatchers.IO) { feishuTools.getFeishuStatus(tool) } }
+    )
+
+    // 测试飞书连接
+    handler.registerTool(
+            name = "feishu_test_connection",
+            descriptionGenerator = { _ -> "Test Feishu API connection" },
+            executor = { tool -> runBlocking(Dispatchers.IO) { feishuTools.testFeishuConnection(tool) } }
+    )
+
+    // 获取私聊用户列表
+    handler.registerTool(
+            name = "feishu_get_p2p_users",
+            descriptionGenerator = { _ -> "Get Feishu p2p (private chat) users who have messaged the bot" },
+            executor = { tool -> runBlocking(Dispatchers.IO) { feishuTools.getFeishuP2PUsers(tool) } }
     )
 }

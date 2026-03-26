@@ -1053,13 +1053,29 @@ const dailyLife = (function () {
                 filePath = `${screenshotDir}/screenshot_${timestamp}.png`;
             }
             console.log(`截取屏幕并保存到: ${filePath}`);
-            const result = await Tools.System.shell(`screencap -p ${filePath}`);
-            return {
-                success: true,
-                message: `截图已保存到 ${filePath}`,
-                file_path: filePath,
-                raw_result: result
-            };
+
+            // 使用 Tools.UI.takeScreenshot - 适配所有权限级别
+            const result = await Tools.UI.takeScreenshot(filePath);
+
+            // parseToolResult 在成功时返回 result.data（文件路径字符串），失败时抛出错误
+            // 所以 result 是文件路径字符串或错误已被抛出
+            if (result && typeof result === 'string' && result.length > 0) {
+                return {
+                    success: true,
+                    message: `截图已保存到 ${result}`,
+                    file_path: result,
+                    raw_result: result
+                };
+            } else {
+                // 如果 result 不是有效字符串，返回失败
+                const errorMsg = '截图失败，请检查截图权限';
+                console.error(`截图失败: ${errorMsg}`);
+                return {
+                    success: false,
+                    message: `截图失败: ${errorMsg}`,
+                    file_path: filePath
+                };
+            }
         }
         catch (error) {
             console.error(`截图失败: ${error.message}`);

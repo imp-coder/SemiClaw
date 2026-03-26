@@ -50,11 +50,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import org.json.JSONObject
 
 class FloatingChatService : Service(), FloatingWindowCallback {
     private val TAG = "FloatingChatService"
@@ -288,6 +291,9 @@ class FloatingChatService : Service(), FloatingWindowCallback {
                 notification = notification,
                 types = ForegroundServiceCompat.buildTypes(dataSync = true, specialUse = true)
             )
+
+            // 初始化飞书服务
+            initFeishuService()
 
         } catch (e: Exception) {
             AppLogger.e(TAG, "Error in onCreate", e)
@@ -798,5 +804,358 @@ class FloatingChatService : Service(), FloatingWindowCallback {
      * @return ChatServiceCore 聊天服务核心实例
      */
     fun getChatCore(): ChatServiceCore = chatCore
+
+    /**
+     * 初始化飞书服务
+     */
+    private fun initFeishuService() {
+        AppLogger.d(TAG, "开始初始化飞书服务...")
+        serviceScope.launch {
+            try {
+                val feishuService = FeishuServiceManager.getInstance(applicationContext)
+
+                // 设置消息处理器
+                feishuService.setMessageHandler { message ->
+                    handleFeishuMessage(message)
+                }
+
+                AppLogger.d(TAG, "正在启动飞书 WebSocket 连接...")
+                // 启动服务
+                val started = feishuService.start()
+                if (started) {
+                    AppLogger.d(TAG, "飞书服务启动成功，WebSocket 已连接")
+                } else {
+                    AppLogger.w(TAG, "飞书服务未启动（请检查：1.飞书集成开关是否打开 2.是否点击了保存按钮）")
+                }
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "初始化飞书服务失败", e)
+            }
+        }
+    }
+
+    /**
+     * 处理飞书消息
+     */
+    private suspend fun handleFeishuMessage(message: FeishuIncomingMessage): String? {
+        val feishuChatId = message.chatId ?: return null
+        val userMessage = message.getTextContent()
+
+        if (userMessage.isBlank()) return null
+
+        AppLogger.d(TAG, "========== 开始处理飞书消息 ==========")
+        AppLogger.d(TAG, "feishuChatId=$feishuChatId, message=${userMessage.take(50)}")
+
+        val feishuService = FeishuServiceManager.getInstance(applicationContext)
+
+        // 发送确认
+        feishuService.sendMessage(feishuChatId, "✅ 收到")
+
+        // 先取消之前的消息处理，避免消息堆积
+        try {
+            chatCore.cancelCurrentMessage()
+            AppLogger.d(TAG, "已取消之前的消息处理")
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "取消之前消息失败", e)
+        }
+
+        // 检查是否需要截图（放宽匹配条件）
+        val needScreenshot = userMessage.contains("截") && userMessage.contains("图") ||
+                              userMessage.contains("截屏") ||
+                              userMessage.contains("screenshot") ||
+                              userMessage.contains("屏幕")
+
+        // 记录截图目录初始状态（使用实际的截图保存路径）
+        val screenshotDir = com.ai.assistance.operit.util.OperitPaths.cleanOnExitDir()
+        val existingScreenshots = if (screenshotDir.exists()) {
+            screenshotDir.listFiles()?.map { it.name }?.toSet() ?: emptySet()
+        } else {
+            emptySet()
+        }
+        AppLogger.d(TAG, "needScreenshot=$needScreenshot, 截图目录: ${screenshotDir.absolutePath}, 已有截图数: ${existingScreenshots.size}")
+
+        // 使用 chatCore 发送消息到界面
+        try {
+            // 等待聊天就绪
+            if (chatCore.currentChatId.value == null) {
+                AppLogger.d(TAG, "等待聊天会话创建...")
+                delay(500)
+            }
+
+            // 记录初始消息数量（发送前的状态）
+            val initialMsgCount = chatCore.chatHistory.value.size
+            AppLogger.d(TAG, "初始消息数量: $initialMsgCount")
+
+            // 如果需要截图，发送提示
+            if (needScreenshot) {
+                feishuService.sendMessage(feishuChatId, "📸 准备执行...")
+            }
+
+            // 发送消息到界面
+            AppLogger.d(TAG, "调用 sendUserMessage...")
+            chatCore.sendUserMessage(
+                promptFunctionType = com.ai.assistance.operit.data.model.PromptFunctionType.CHAT,
+                messageTextOverride = userMessage
+            )
+            AppLogger.d(TAG, "sendUserMessage 已返回")
+
+            // 等待用户消息被添加到历史
+            var userMsgAdded = false
+            for (i in 0 until 20) {
+                val currentCount = chatCore.chatHistory.value.size
+                if (currentCount > initialMsgCount) {
+                    AppLogger.d(TAG, "用户消息已添加，当前数量: $currentCount")
+                    userMsgAdded = true
+                    break
+                }
+                delay(100)
+            }
+            if (!userMsgAdded) {
+                AppLogger.w(TAG, "用户消息可能未添加到历史")
+            }
+
+            // 记录新的初始消息数量（用户消息已添加）
+            val newInitialCount = chatCore.chatHistory.value.size
+            AppLogger.d(TAG, "用户消息后的数量: $newInitialCount")
+
+            // 监听界面回复并发送到飞书
+            var lastAiContent = ""
+            var screenshotSent = false
+            val maxWaitTime = 600000L  // 10 分钟，适合复杂任务
+            val startTime = System.currentTimeMillis()
+            var loopCount = 0
+
+            while (System.currentTimeMillis() - startTime < maxWaitTime) {
+                delay(300)
+                loopCount++
+
+                val currentMessages = chatCore.chatHistory.value
+                val currentMsgCount = currentMessages.size
+                val isProcessing = chatCore.isLoading.value
+
+                // 每次循环都打印状态（调试用）
+                AppLogger.d(TAG, "循环 #$loopCount: 消息=$currentMsgCount, 初始=$newInitialCount, 处理中=$isProcessing")
+
+                // 检查是否有新的截图
+                if (needScreenshot && !screenshotSent) {
+                    val newScreenshots = if (screenshotDir.exists()) {
+                        screenshotDir.listFiles()
+                            ?.filter { it.name !in existingScreenshots && it.name.endsWith(".png") }
+                            ?.sortedByDescending { it.lastModified() }
+                            ?: emptyList()
+                    } else {
+                        emptyList()
+                    }
+
+                    if (newScreenshots.isNotEmpty()) {
+                        val screenshotFile = newScreenshots.first()
+                        AppLogger.d(TAG, "发现新截图: ${screenshotFile.name}")
+
+                        // 在单独的协程中发送截图，避免阻塞主循环
+                        val screenshotJob = serviceScope.launch {
+                            try {
+                                feishuService.sendMessage(feishuChatId, "📤 正在发送截图...")
+
+                                // 执行 sync 命令确保文件系统同步
+                                try {
+                                    Runtime.getRuntime().exec("sync").waitFor()
+                                    AppLogger.d(TAG, "文件系统已同步")
+                                } catch (e: Exception) {
+                                    AppLogger.w(TAG, "sync 命令执行失败", e)
+                                }
+
+                                delay(500)
+
+                                // 等待文件大小稳定
+                                var prevSize = 0L
+                                var stableCount = 0
+                                var fileReady = false
+                                for (i in 0 until 10) {
+                                    val currentSize = screenshotFile.length()
+                                    if (currentSize == prevSize && currentSize > 0) {
+                                        stableCount++
+                                        if (stableCount >= 3) {
+                                            AppLogger.d(TAG, "文件大小稳定: $currentSize bytes")
+                                            fileReady = true
+                                            break
+                                        }
+                                    } else {
+                                        stableCount = 0
+                                    }
+                                    prevSize = currentSize
+                                    delay(200)
+                                }
+
+                                if (!fileReady) {
+                                    AppLogger.w(TAG, "文件大小未稳定，继续尝试发送")
+                                }
+
+                                AppLogger.d(TAG, "读取截图文件: ${screenshotFile.name}")
+                                val imageBytes = screenshotFile.readBytes()
+                                AppLogger.d(TAG, "截图字节数: ${imageBytes.size}")
+
+                                AppLogger.d(TAG, "调用 sendImage 发送图片...")
+                                val result = feishuService.sendImage(feishuChatId, imageBytes)
+                                AppLogger.d(TAG, "sendImage 返回: $result")
+
+                                if (result != null) {
+                                    feishuService.sendMessage(feishuChatId, "✅ 截图已发送")
+                                } else {
+                                    feishuService.sendMessage(feishuChatId, "❌ 截图发送失败")
+                                }
+                            } catch (e: Exception) {
+                                AppLogger.e(TAG, "发送截图异常", e)
+                                feishuService.sendMessage(feishuChatId, "❌ 截图发送失败: ${e.message}")
+                            }
+                        }
+
+                        // 等待截图发送完成（最多30秒）
+                        withTimeoutOrNull(30000) {
+                            screenshotJob.join()
+                        }
+                        screenshotSent = true
+                        AppLogger.d(TAG, "截图发送流程完成")
+                    }
+                }
+
+                // 检查是否有新的 AI 回复
+                if (currentMsgCount > newInitialCount) {
+                    val newMessages = currentMessages.drop(newInitialCount)
+                    AppLogger.d(TAG, "新消息数: ${newMessages.size}, 发送者: ${newMessages.map { it.sender }}")
+
+                    // AI 消息的 sender 可能是 "assistant" 或 "ai"
+                    val lastAiMessage = newMessages.lastOrNull { it.sender == "assistant" || it.sender == "ai" }
+
+                    if (lastAiMessage != null && lastAiMessage.content.isNotBlank()) {
+                        val content = lastAiMessage.content
+                        // 只有当内容不是以思考标签开头时才更新（说明是最终回复）
+                        if (!content.trim().startsWith(" ByteArrayInputStream")) {
+                            lastAiContent = content
+                            AppLogger.d(TAG, "更新 AI 回复内容: ${content.take(50)}...")
+                        }
+                    }
+                }
+
+                // 如果处理已完成，发送最终结果并退出
+                if (!isProcessing) {
+                    // 等待一下确保内容更新
+                    delay(500)
+                    val finalMessages = chatCore.chatHistory.value
+                    if (finalMessages.size > newInitialCount) {
+                        val newMessages = finalMessages.drop(newInitialCount)
+                        val lastAiMessage = newMessages.lastOrNull { it.sender == "assistant" || it.sender == "ai" }
+                        if (lastAiMessage != null) {
+                            lastAiContent = lastAiMessage.content
+                        }
+                    }
+
+                    if (lastAiContent.isNotBlank()) {
+                        AppLogger.d(TAG, "处理已完成，发送最终结果")
+                        val cleanContent = cleanFeishuResponseText(lastAiContent)
+                        val contentToSend = if (cleanContent.isNotBlank()) cleanContent else lastAiContent
+                        AppLogger.d(TAG, "发送到飞书: ${contentToSend.take(50)}...")
+                        feishuService.sendMessage(feishuChatId, contentToSend)
+                    } else {
+                        AppLogger.w(TAG, "处理完成但无 AI 回复内容")
+                    }
+                    break
+                }
+            }
+
+            AppLogger.d(TAG, "========== 飞书消息处理结束 ==========")
+
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "处理飞书消息失败", e)
+            feishuService.sendMessage(feishuChatId, "处理失败：${e.message}")
+        }
+
+        return null
+    }
+
+    /**
+     * 清理飞书响应文本
+     * 移除标签和中间细节，只保留简短结果和关键过程
+     */
+    private fun cleanFeishuResponseText(text: String): String {
+        var result = text
+
+        // 移除思考标签及其内容
+        result = result.replace(Regex(" ByteArrayInputStream.*?ByteArrayInputStream>", RegexOption.DOT_MATCHES_ALL), "")
+        // 移除 <status ...>...</status> 标签及其内容
+        result = result.replace(Regex("<status[^>]*>.*?</status>", RegexOption.DOT_MATCHES_ALL), "")
+        // 移除工具调用细节
+        result = result.replace(Regex("<args>.*?</args>", RegexOption.DOT_MATCHES_ALL), "")
+        result = result.replace(Regex("<tool_use>.*?</tool_use>", RegexOption.DOT_MATCHES_ALL), "")
+        result = result.replace(Regex("<function_calls>.*?</function_calls>", RegexOption.DOT_MATCHES_ALL), "")
+        // 移除单独的标签
+        result = result.replace(Regex("</?think>"), "")
+        result = result.replace(Regex("</?status[^>]*>"), "")
+
+        // 移除代码块中的 XML 工具调用
+        result = result.replace(Regex("```xml\\s*<.*?>\\s*```", RegexOption.DOT_MATCHES_ALL), "")
+        // 移除空代码块
+        result = result.replace(Regex("```\\s*```"), "")
+
+        // 移除多余空行
+        result = result.replace(Regex("\n{3,}"), "\n\n")
+
+        return result.trim()
+    }
+
+    /**
+     * 执行截图
+     */
+    private suspend fun captureScreenshot(): ByteArray? {
+        return try {
+            // 检查是否有 MediaProjection 权限
+            if (com.ai.assistance.operit.core.tools.system.MediaProjectionHolder.mediaProjection == null) {
+                AppLogger.d(TAG, "请求 MediaProjection 权限...")
+                withContext(Dispatchers.Main) {
+                    com.ai.assistance.operit.core.tools.system.ScreenCaptureActivity.cleanStart(applicationContext)
+                }
+
+                // 等待权限授权
+                var retries = 0
+                while (com.ai.assistance.operit.core.tools.system.MediaProjectionHolder.mediaProjection == null && retries < 20) {
+                    delay(500)
+                    retries++
+                }
+
+                if (com.ai.assistance.operit.core.tools.system.MediaProjectionHolder.mediaProjection == null) {
+                    AppLogger.w(TAG, "MediaProjection 权限未授予")
+                    return null
+                }
+            }
+
+            // 创建临时文件保存截图
+            val screenshotDir = com.ai.assistance.operit.util.OperitPaths.cleanOnExitDir()
+            val file = java.io.File(screenshotDir, "${System.currentTimeMillis()}.png")
+
+            // 使用 MediaProjectionCaptureManager 截图
+            val mediaProjection = com.ai.assistance.operit.core.tools.system.MediaProjectionHolder.mediaProjection
+                ?: return null
+
+            val captureManager = com.ai.assistance.operit.core.tools.system.MediaProjectionCaptureManager(
+                applicationContext, mediaProjection
+            )
+            captureManager.setupDisplay()
+            delay(500)  // 等待画面准备好
+
+            val success = captureManager.captureToFile(file)
+            captureManager.release()
+
+            if (success && file.exists()) {
+                val bytes = file.readBytes()
+                file.delete()
+                AppLogger.d(TAG, "截图成功，大小: ${bytes.size}")
+                bytes
+            } else {
+                AppLogger.w(TAG, "截图失败")
+                null
+            }
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "截图失败", e)
+            null
+        }
+    }
 
 }
