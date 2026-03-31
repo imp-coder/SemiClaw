@@ -838,14 +838,74 @@ class FloatingChatService : Service(), FloatingWindowCallback {
      */
     private suspend fun handleFeishuMessage(message: FeishuIncomingMessage): String? {
         val feishuChatId = message.chatId ?: return null
-        val userMessage = message.getTextContent()
 
-        if (userMessage.isBlank()) return null
+        // 获取文本内容（支持普通文本和富文本）
+        val userMessage = if (message.msgType == "post") {
+            message.getPostTextContent()
+        } else {
+            message.getTextContent()
+        }
 
         AppLogger.d(TAG, "========== 开始处理飞书消息 ==========")
-        AppLogger.d(TAG, "feishuChatId=$feishuChatId, message=${userMessage.take(50)}")
+        AppLogger.d(TAG, "feishuChatId=$feishuChatId, msgType=${message.msgType}")
+        AppLogger.d(TAG, "userMessage=${userMessage.take(100)}")
 
         val feishuService = FeishuServiceManager.getInstance(applicationContext)
+
+        // ========== 处理图片消息 ==========
+        // 检查是否包含图片
+        val hasImage = message.isImageMessage()
+        val imageKey = if (hasImage) message.getImageKey() else null
+
+        AppLogger.d(TAG, "hasImage=$hasImage, imageKey=$imageKey")
+
+        if (!imageKey.isNullOrBlank()) {
+            AppLogger.d(TAG, "检测到图片，imageKey: $imageKey, messageId: ${message.messageId}")
+
+            // 检查是否是设置壁纸命令
+            val isWallpaperCommand = userMessage.contains("壁纸") ||
+                    userMessage.contains("wallpaper") ||
+                    userMessage.contains("背景")
+
+            if (isWallpaperCommand) {
+                // 发送确认
+                feishuService.sendMessage(feishuChatId, "🖼️ 正在设置壁纸...")
+
+                try {
+                    val feishuClient = com.ai.assistance.operit.services.FeishuClient(applicationContext)
+                    val feishuPreferences = com.ai.assistance.operit.data.preferences.FeishuPreferences.getInstance(applicationContext)
+                    val config = feishuPreferences.getFeishuConfig()
+
+                    // 使用 WallpaperUtil 设置壁纸，传递 messageId
+                    val result = com.ai.assistance.operit.util.WallpaperUtil.setWallpaperFromFeishu(
+                        applicationContext,
+                        feishuClient,
+                        config,
+                        imageKey,
+                        message.messageId  // 传递消息 ID
+                    )
+
+                    if (result.isSuccess) {
+                        feishuService.sendMessage(feishuChatId, "✅ 壁纸设置成功！")
+                    } else {
+                        val error = result.exceptionOrNull()?.message ?: "未知错误"
+                        feishuService.sendMessage(feishuChatId, "❌ 壁纸设置失败: $error")
+                    }
+                } catch (e: Exception) {
+                    AppLogger.e(TAG, "设置壁纸异常", e)
+                    feishuService.sendMessage(feishuChatId, "❌ 壁纸设置失败: ${e.message}")
+                }
+
+                return null
+            } else {
+                // 普通图片消息，回复提示
+                feishuService.sendMessage(feishuChatId, "📸 收到图片。如需设置为壁纸，请发送图片时附带说明\"设置壁纸\"。")
+                return null
+            }
+        }
+
+        // ========== 处理文本消息 ==========
+        if (userMessage.isBlank()) return null
 
         // 发送确认
         feishuService.sendMessage(feishuChatId, "✅ 收到")
@@ -1037,15 +1097,22 @@ class FloatingChatService : Service(), FloatingWindowCallback {
 
                 // 如果处理已完成，发送最终结果并退出
                 if (!isProcessing) {
-                    // 等待一下确保内容更新
-                    delay(500)
-                    val finalMessages = chatCore.chatHistory.value
-                    if (finalMessages.size > newInitialCount) {
-                        val newMessages = finalMessages.drop(newInitialCount)
-                        val lastAiMessage = newMessages.lastOrNull { it.sender == "assistant" || it.sender == "ai" }
-                        if (lastAiMessage != null) {
-                            lastAiContent = lastAiMessage.content
+                    // 等待AI响应内容（最多等待10秒）
+                    var waitCount = 0
+                    while (lastAiContent.isBlank() && waitCount < 20) {
+                        delay(500)
+                        waitCount++
+                        val finalMessages = chatCore.chatHistory.value
+                        if (finalMessages.size > newInitialCount) {
+                            val newMessages = finalMessages.drop(newInitialCount)
+                            val lastAiMessage = newMessages.lastOrNull { it.sender == "assistant" || it.sender == "ai" }
+                            if (lastAiMessage != null && lastAiMessage.content.isNotBlank()) {
+                                lastAiContent = lastAiMessage.content
+                                AppLogger.d(TAG, "等待后获取到AI回复: ${lastAiContent.take(50)}...")
+                                break
+                            }
                         }
+                        AppLogger.d(TAG, "等待AI响应内容... ($waitCount/20)")
                     }
 
                     if (lastAiContent.isNotBlank()) {

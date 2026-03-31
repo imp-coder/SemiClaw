@@ -111,6 +111,15 @@
             "name": "get_device_info",
             "description": { "zh": "获取详细的设备信息，包括型号、操作系统版本、内存、存储、网络状态等。", "en": "Get detailed device information, including model, OS version, memory, storage, network status, etc." },
             "parameters": []
+        },
+        {
+            "name": "set_wallpaper",
+            "description": { "zh": "设置设备壁纸。支持从本地文件路径或URL设置壁纸。需要用户授权。", "en": "Set device wallpaper. Supports local file path or URL. Requires user authorization." },
+            "parameters": [
+                { "name": "image_path", "description": { "zh": "本地图片文件路径", "en": "Local image file path" }, "type": "string", "required": false },
+                { "name": "image_url", "description": { "zh": "图片URL地址", "en": "Image URL address" }, "type": "string", "required": false },
+                { "name": "which", "description": { "zh": "壁纸类型：system（系统壁纸）、lock（锁屏壁纸）、both（两者）。默认system", "en": "Wallpaper type: system, lock, or both. Default: system" }, "type": "string", "required": false }
+            ]
         }
     ]
 }*/
@@ -182,6 +191,15 @@ const SystemTools = (function () {
     async function get_device_info(params) {
         const result = await Tools.System.getDeviceInfo();
         return { success: true, message: '成功获取设备信息', data: result };
+    }
+    async function set_wallpaper(params) {
+        const options = {};
+        if (params.image_path) options.image_path = params.image_path;
+        if (params.image_url) options.image_url = params.image_url;
+        if (params.which) options.which = params.which;
+
+        const result = await Tools.System.setWallpaper(options);
+        return { success: result.success, message: result.success ? '壁纸设置成功' : '壁纸设置失败', data: result };
     }
     async function wrapToolExecution(func, params) {
         try {
@@ -333,6 +351,7 @@ const SystemTools = (function () {
         get_notifications: (params) => wrapToolExecution(get_notifications, params),
         get_device_location: (params) => wrapToolExecution(get_device_location, params),
         get_device_info: (params) => wrapToolExecution(get_device_info, params),
+        set_wallpaper: (params) => wrapToolExecution(set_wallpaper, params),
         main,
     };
 })();
@@ -348,4 +367,5 @@ exports.execute_intent = SystemTools.execute_intent;
 exports.get_notifications = SystemTools.get_notifications;
 exports.get_device_location = SystemTools.get_device_location;
 exports.get_device_info = SystemTools.get_device_info;
+exports.set_wallpaper = SystemTools.set_wallpaper;
 exports.main = SystemTools.main;

@@ -908,4 +908,154 @@ data class FeishuIncomingMessage(
             content ?: ""
         }
     }
+
+    /**
+     * 获取图片消息的 image_key
+     * 飞书图片消息的 content 格式:
+     * - 普通图片: {"image_key": "xxx"}
+     * - 富文本(post): {"title":"","content":[[{"tag":"img","image_key":"xxx",...}],...]}
+     */
+    fun getImageKey(): String? {
+        // 先打印调试信息
+        AppLogger.d("FeishuIncomingMessage", "getImageKey called: msgType=$msgType, content=${content?.take(500)}")
+
+        if (content.isNullOrBlank()) {
+            AppLogger.w("FeishuIncomingMessage", "Content is null or blank")
+            return null
+        }
+
+        return try {
+            val contentJson = JSONObject(content)
+
+            // 打印所有字段
+            val keys = contentJson.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                AppLogger.d("FeishuIncomingMessage", "  content field: $key = ${contentJson.get(key)?.toString()?.take(100)}")
+            }
+
+            // 1. 图片消息直接有 image_key
+            val imageKey = contentJson.optString("image_key", "")
+            if (imageKey.isNotBlank()) {
+                AppLogger.d("FeishuIncomingMessage", "Found direct image_key: $imageKey")
+                return imageKey
+            }
+
+            // 2. 尝试 file_key
+            val fileKey = contentJson.optString("file_key", "")
+            if (fileKey.isNotBlank()) {
+                AppLogger.d("FeishuIncomingMessage", "Found file_key: $fileKey")
+                return fileKey
+            }
+
+            // 3. 富文本消息 (post 类型): content 是嵌套数组
+            // 格式: {"content":[[{"tag":"img","image_key":"xxx"}],[{"tag":"text","text":"..."}]]}
+            val contentArray = contentJson.optJSONArray("content")
+            if (contentArray != null && contentArray.length() > 0) {
+                // 遍历外层数组
+                for (i in 0 until contentArray.length()) {
+                    val innerArray = contentArray.optJSONArray(i)
+                    if (innerArray != null) {
+                        // 遍历内层数组
+                        for (j in 0 until innerArray.length()) {
+                            val element = innerArray.optJSONObject(j)
+                            if (element != null) {
+                                val tag = element.optString("tag", "")
+                                AppLogger.d("FeishuIncomingMessage", "Found element with tag: $tag")
+
+                                // 查找图片元素
+                                if (tag == "img" || tag == "image") {
+                                    val imgKey = element.optString("image_key", "")
+                                    if (imgKey.isNotBlank()) {
+                                        AppLogger.d("FeishuIncomingMessage", "Found image_key in post content: $imgKey")
+                                        return imgKey
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. 尝试从 rich_text 中查找
+            val richText = contentJson.optString("rich_text", "")
+            if (richText.isNotBlank()) {
+                val imageKeyPattern = Regex("\"image_key\"\\s*:\\s*\"([^\"]+)\"")
+                val match = imageKeyPattern.find(richText)
+                if (match != null) {
+                    val extractedKey = match.groupValues[1]
+                    AppLogger.d("FeishuIncomingMessage", "Extracted image_key from rich_text: $extractedKey")
+                    return extractedKey
+                }
+            }
+
+            // 5. 尝试 media_id
+            val mediaId = contentJson.optString("media_id", "")
+            if (mediaId.isNotBlank()) {
+                AppLogger.d("FeishuIncomingMessage", "Found media_id: $mediaId")
+                return mediaId
+            }
+
+            AppLogger.w("FeishuIncomingMessage", "No image_key found in content")
+            null
+        } catch (e: Exception) {
+            AppLogger.e("FeishuIncomingMessage", "getImageKey error: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * 获取富文本消息中的文本内容
+     */
+    fun getPostTextContent(): String {
+        if (content.isNullOrBlank()) return ""
+
+        return try {
+            val contentJson = JSONObject(content)
+            val contentArray = contentJson.optJSONArray("content")
+            if (contentArray != null) {
+                val textBuilder = StringBuilder()
+                for (i in 0 until contentArray.length()) {
+                    val innerArray = contentArray.optJSONArray(i)
+                    if (innerArray != null) {
+                        for (j in 0 until innerArray.length()) {
+                            val element = innerArray.optJSONObject(j)
+                            if (element != null) {
+                                val tag = element.optString("tag", "")
+                                if (tag == "text") {
+                                    textBuilder.append(element.optString("text", ""))
+                                }
+                            }
+                        }
+                    }
+                }
+                textBuilder.toString()
+            } else {
+                ""
+            }
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    /**
+     * 判断是否是图片消息
+     */
+    fun isImageMessage(): Boolean {
+        // 飞书图片消息类型可能是 image、post，或者包含图片内容
+        if (msgType == "image") {
+            return true
+        }
+        // post 类型需要检查是否包含图片
+        if (msgType == "post" && !content.isNullOrBlank()) {
+            return content.contains("\"tag\":\"img\"") ||
+                   content.contains("\"tag\":\"image\"") ||
+                   content.contains("image_key")
+        }
+        // 其他情况检查 content 中是否包含 image_key
+        if (!content.isNullOrBlank()) {
+            return content.contains("image_key") || content.contains("file_key")
+        }
+        return false
+    }
 }

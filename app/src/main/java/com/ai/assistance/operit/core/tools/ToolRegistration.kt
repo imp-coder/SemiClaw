@@ -1796,6 +1796,24 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             }
     )
 
+    // 设置壁纸
+    handler.registerTool(
+            name = "set_wallpaper",
+            descriptionGenerator = { tool ->
+                val imagePath = tool.parameters.find { it.name == "image_path" }?.value
+                val imageUrl = tool.parameters.find { it.name == "image_url" }?.value
+                val which = tool.parameters.find { it.name == "which" }?.value ?: "system"
+                when {
+                    !imagePath.isNullOrBlank() -> "Set wallpaper from file: $imagePath ($which)"
+                    !imageUrl.isNullOrBlank() -> "Set wallpaper from URL: ${imageUrl.take(50)}... ($which)"
+                    else -> "Set wallpaper (no source specified)"
+                }
+            },
+            executor = { tool ->
+                runBlocking(Dispatchers.IO) { systemOperationTools.setWallpaper(tool) }
+            }
+    )
+
     // 获取当前页面/窗口信息
     handler.registerTool(
             name = "get_page_info",

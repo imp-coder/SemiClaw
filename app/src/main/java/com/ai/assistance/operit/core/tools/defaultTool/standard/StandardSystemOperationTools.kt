@@ -901,4 +901,105 @@ open class StandardSystemOperationTools(private val context: Context) {
             val country: String, // 国家
             val postalCode: String // 邮政编码
     )
+
+    /**
+     * 设置壁纸
+     * 支持从本地文件路径或URL设置壁纸
+     */
+    open suspend fun setWallpaper(tool: AITool): ToolResult {
+        val imagePath = tool.parameters.find { it.name == "image_path" }?.value ?: ""
+        val imageUrl = tool.parameters.find { it.name == "image_url" }?.value ?: ""
+        val which = tool.parameters.find { it.name == "which" }?.value ?: "system"
+
+        if (imagePath.isBlank() && imageUrl.isBlank()) {
+            return ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "Must provide either image_path or image_url parameter"
+            )
+        }
+
+        return try {
+            val wallpaperManager = android.app.WallpaperManager.getInstance(context)
+            val whichFlag = when (which.lowercase()) {
+                "lock" -> android.app.WallpaperManager.FLAG_LOCK
+                "both" -> android.app.WallpaperManager.FLAG_SYSTEM or android.app.WallpaperManager.FLAG_LOCK
+                else -> android.app.WallpaperManager.FLAG_SYSTEM
+            }
+
+            when {
+                imagePath.isNotBlank() -> {
+                    // 从本地文件设置壁纸
+                    val file = File(imagePath)
+                    if (!file.exists()) {
+                        return ToolResult(
+                            toolName = tool.name,
+                            success = false,
+                            result = StringResultData(""),
+                            error = "Image file does not exist: $imagePath"
+                        )
+                    }
+
+                    val result = com.ai.assistance.operit.util.WallpaperUtil.setWallpaperFromFile(
+                        context, file, whichFlag
+                    )
+
+                    if (result.isSuccess) {
+                        ToolResult(
+                            toolName = tool.name,
+                            success = true,
+                            result = StringResultData("壁纸设置成功"),
+                            error = ""
+                        )
+                    } else {
+                        ToolResult(
+                            toolName = tool.name,
+                            success = false,
+                            result = StringResultData(""),
+                            error = result.exceptionOrNull()?.message ?: "壁纸设置失败"
+                        )
+                    }
+                }
+                imageUrl.isNotBlank() -> {
+                    // 从URL设置壁纸
+                    val result = com.ai.assistance.operit.util.WallpaperUtil.setWallpaperFromUrl(
+                        context, imageUrl, whichFlag
+                    )
+
+                    if (result.isSuccess) {
+                        ToolResult(
+                            toolName = tool.name,
+                            success = true,
+                            result = StringResultData("壁纸设置成功"),
+                            error = ""
+                        )
+                    } else {
+                        ToolResult(
+                            toolName = tool.name,
+                            success = false,
+                            result = StringResultData(""),
+                            error = result.exceptionOrNull()?.message ?: "壁纸设置失败"
+                        )
+                    }
+                }
+                else -> {
+                    ToolResult(
+                        toolName = tool.name,
+                        success = false,
+                        result = StringResultData(""),
+                        error = "No image source provided"
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "设置壁纸时出错", e)
+            ToolResult(
+                toolName = tool.name,
+                success = false,
+                result = StringResultData(""),
+                error = "Error setting wallpaper: ${e.message}"
+            )
+        }
+    }
 }

@@ -873,4 +873,516 @@ class FeishuClient(private val context: Context) {
         }
         return result
     }
+
+    /**
+     * 下载飞书图片
+     *
+     * 飞书图片下载 API 文档: https://open.feishu.cn/document/server-docs/im-v1/image/download
+     * 注意：飞书图片 key 格式如 img_v3_02109_xxx
+     * 需要权限: im:resource:read (获取消息图片) 或 im:resource (下载资源)
+     *
+     * @param config 飞书配置
+     * @param imageKey 图片 key（从消息中获取）
+     * @param messageId 可选的消息 ID，用于获取消息资源
+     * @return 图片字节数据，失败返回 null
+     */
+    suspend fun downloadImage(config: FeishuConfig, imageKey: String, messageId: String? = null): ByteArray? {
+        if (!config.isConfigured()) {
+            AppLogger.e(TAG, "飞书未配置")
+            return null
+        }
+
+        val token = getTenantAccessToken(config)
+        if (token == null) {
+            AppLogger.e(TAG, "获取 tenant_access_token 失败")
+            return null
+        }
+
+        AppLogger.d(TAG, "准备下载图片, imageKey=$imageKey, messageId=$messageId")
+
+        return withContext(Dispatchers.IO) {
+            // 方法0: 如果有 messageId，尝试使用消息资源 API
+            if (!messageId.isNullOrBlank()) {
+                val result0 = tryDownloadMessageResource(token, messageId, imageKey)
+                if (result0 != null) {
+                    AppLogger.d(TAG, "方法0(消息资源)成功")
+                    return@withContext result0
+                }
+            }
+
+            // 方法1: 使用 POST multipart/form-data 下载接口（推荐）
+            val result1 = tryDownloadWithPost(token, imageKey)
+            if (result1 != null) {
+                AppLogger.d(TAG, "方法1(POST multipart)成功")
+                return@withContext result1
+            }
+
+            // 方法2: 使用 POST JSON 格式（备用）
+            val result2 = tryDownloadWithPostJson(token, imageKey)
+            if (result2 != null) {
+                AppLogger.d(TAG, "方法2(POST JSON)成功")
+                return@withContext result2
+            }
+
+            // 方法3: 使用 GET 获取图片信息接口
+            val result3 = tryGetImageInfo(token, imageKey)
+            if (result3 != null) {
+                AppLogger.d(TAG, "方法3(GET信息)成功")
+                return@withContext result3
+            }
+
+            // 方法4: 尝试 GET 直接下载（带 query 参数）
+            val result4 = tryDownloadWithGet(token, imageKey)
+            if (result4 != null) {
+                AppLogger.d(TAG, "方法4(GET下载)成功")
+                return@withContext result4
+            }
+
+            // 方法5: 尝试使用文件下载 API
+            val result5 = tryDownloadAsFile(token, imageKey)
+            if (result5 != null) {
+                AppLogger.d(TAG, "方法5(文件下载)成功")
+                return@withContext result5
+            }
+
+            // 方法6: 尝试 v2 API
+            val result6 = tryGetImageInfoV2(token, imageKey)
+            if (result6 != null) {
+                AppLogger.d(TAG, "方法6(V2信息)成功")
+                return@withContext result6
+            }
+
+            AppLogger.e(TAG, "所有下载方法都失败，请检查飞书应用权限配置")
+            AppLogger.e(TAG, "需要权限: im:resource:read 或 im:resource")
+            null
+        }
+    }
+
+    /**
+     * 方法0: 通过消息资源 API 获取图片
+     * API: GET /im/v1/messages/:message_id/resources/:file_key?type=image
+     */
+    private fun tryDownloadMessageResource(token: String, messageId: String, fileKey: String): ByteArray? {
+        try {
+            // 飞书获取消息资源 API
+            val resourceUrl = "$BASE_URL/im/v1/messages/$messageId/resources/$fileKey?type=image"
+
+            AppLogger.d(TAG, "[消息资源] URL: $resourceUrl")
+
+            val request = Request.Builder()
+                .url(resourceUrl)
+                .get()
+                .addHeader("Authorization", "Bearer $token")
+                .build()
+
+            httpClient.newCall(request).execute().use { response ->
+                val code = response.code
+                val contentType = response.header("Content-Type", "")
+                AppLogger.d(TAG, "[消息资源] 响应码: $code, Content-Type: $contentType")
+
+                if (response.isSuccessful) {
+                    // 如果是图片数据
+                    if (contentType?.startsWith("image/") == true ||
+                        contentType?.startsWith("application/octet-stream") == true) {
+                        val imageData = response.body?.bytes()
+                        if (imageData != null && imageData.isNotEmpty()) {
+                            AppLogger.d(TAG, "[消息资源] 图片下载成功，大小: ${imageData.size} bytes")
+                            return imageData
+                        }
+                    }
+
+                    // 如果返回 JSON
+                    val body = response.body?.string().orEmpty()
+                    AppLogger.d(TAG, "[消息资源] Body: ${body.take(500)}")
+
+                    try {
+                        val json = JSONObject(body)
+                        if (json.optInt("code", -1) == 0) {
+                            val data = json.optJSONObject("data")
+                            val tmpUrl = data?.optString("tmp_url", "")
+                                ?.ifBlank { data?.optString("download_url", "") }
+
+                            if (!tmpUrl.isNullOrBlank()) {
+                                AppLogger.d(TAG, "[消息资源] 获取到临时URL: $tmpUrl")
+                                return downloadFromUrlSync(tmpUrl)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        // 可能是直接的图片数据
+                        AppLogger.d(TAG, "[消息资源] 尝试作为二进制处理")
+                    }
+                } else {
+                    val errorBody = response.body?.string().orEmpty()
+                    AppLogger.e(TAG, "[消息资源] 失败: $code, body: ${errorBody.take(300)}")
+                }
+            }
+            return null
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "[消息资源] 异常: ${e.message}")
+            return null
+        }
+    }
+
+    /**
+     * 方法1: POST /im/v1/images/:image_key/download (使用 multipart/form-data)
+     */
+    private fun tryDownloadWithPost(token: String, imageKey: String): ByteArray? {
+        try {
+            // 注意：飞书 API 不需要在 URL 中加 /download，直接 POST 到 /im/v1/images/:image_key
+            val downloadUrl = "$BASE_URL/im/v1/images/$imageKey"
+
+            // 飞书 API 要求 multipart/form-data 格式
+            val requestBody = MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart("image_type", "message")
+                .build()
+
+            AppLogger.d(TAG, "[POST下载] URL: $downloadUrl, 使用 multipart/form-data")
+
+            val request = Request.Builder()
+                .url(downloadUrl)
+                .post(requestBody)
+                .addHeader("Authorization", "Bearer $token")
+                .build()
+
+            httpClient.newCall(request).execute().use { response ->
+                return handleDownloadResponse(response, "POST下载")
+            }
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "[POST下载] 异常: ${e.message}")
+            return null
+        }
+    }
+
+    /**
+     * 方法1b: POST 使用 JSON 格式（备用）
+     */
+    private fun tryDownloadWithPostJson(token: String, imageKey: String): ByteArray? {
+        try {
+            // 尝试直接 POST 到图片 URL
+            val downloadUrl = "$BASE_URL/im/v1/images/$imageKey"
+
+            val requestBody = JSONObject()
+                .put("image_type", "message")
+                .toString()
+
+            AppLogger.d(TAG, "[POST-JSON下载] URL: $downloadUrl, Body: $requestBody")
+
+            val request = Request.Builder()
+                .url(downloadUrl)
+                .post(requestBody.toRequestBody("application/json".toMediaType()))
+                .addHeader("Authorization", "Bearer $token")
+                .addHeader("Content-Type", "application/json")
+                .build()
+
+            httpClient.newCall(request).execute().use { response ->
+                return handleDownloadResponse(response, "POST-JSON下载")
+            }
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "[POST-JSON下载] 异常: ${e.message}")
+            return null
+        }
+    }
+
+    /**
+     * 方法3: 使用 GET 获取图片信息接口
+     */
+    private fun tryGetImageInfo(token: String, imageKey: String): ByteArray? {
+        try {
+            // 尝试多种参数组合
+            val urls = listOf(
+                "$BASE_URL/im/v1/images/$imageKey",
+                "$BASE_URL/im/v1/images/$imageKey?image_type=message",
+                "$BASE_URL/im/v1/images/$imageKey?type=message"
+            )
+
+            for ((index, infoUrl) in urls.withIndex()) {
+                AppLogger.d(TAG, "[GET信息${index + 1}] URL: $infoUrl")
+
+                val request = Request.Builder()
+                    .url(infoUrl)
+                    .get()
+                    .addHeader("Authorization", "Bearer $token")
+                    .build()
+
+                try {
+                    httpClient.newCall(request).execute().use { response ->
+                        val code = response.code
+                        val body = response.body?.string().orEmpty()
+                        AppLogger.d(TAG, "[GET信息${index + 1}] 响应码: $code, Body: ${body.take(500)}")
+
+                        if (response.isSuccessful) {
+                            try {
+                                val json = JSONObject(body)
+                                if (json.optInt("code", -1) == 0) {
+                                    val data = json.optJSONObject("data")
+                                    val tmpUrl = data?.optString("tmp_url", "")
+                                        ?.ifBlank { data?.optString("download_url", "") }
+                                        ?.ifBlank { data?.optString("url", "") }
+
+                                    if (!tmpUrl.isNullOrBlank()) {
+                                        AppLogger.d(TAG, "[GET信息${index + 1}] 获取到临时URL: $tmpUrl")
+                                        return downloadFromUrlSync(tmpUrl)
+                                    }
+
+                                    // 尝试直接从 data 中获取图片内容
+                                    val imageContent = data?.optString("image", "")
+                                    if (!imageContent.isNullOrBlank()) {
+                                        // 可能是 base64 编码的图片
+                                        try {
+                                            val imageBytes = android.util.Base64.decode(imageContent, android.util.Base64.DEFAULT)
+                                            if (imageBytes.isNotEmpty()) {
+                                                AppLogger.d(TAG, "[GET信息${index + 1}] 获取到 base64 图片数据，大小: ${imageBytes.size}")
+                                                return imageBytes
+                                            }
+                                        } catch (e: Exception) {
+                                            AppLogger.e(TAG, "[GET信息${index + 1}] Base64 解码失败: ${e.message}")
+                                        }
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                AppLogger.e(TAG, "[GET信息${index + 1}] JSON解析失败: ${e.message}")
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    AppLogger.e(TAG, "[GET信息${index + 1}] 请求异常: ${e.message}")
+                }
+            }
+            return null
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "[GET信息] 异常: ${e.message}")
+            return null
+        }
+    }
+
+    /**
+     * 方法4: 尝试 GET 直接下载（带 query 参数）
+     */
+    private fun tryDownloadWithGet(token: String, imageKey: String): ByteArray? {
+        try {
+            val downloadUrl = "$BASE_URL/im/v1/images/$imageKey/download?image_type=message"
+
+            AppLogger.d(TAG, "[GET下载] URL: $downloadUrl")
+
+            val request = Request.Builder()
+                .url(downloadUrl)
+                .get()
+                .addHeader("Authorization", "Bearer $token")
+                .build()
+
+            httpClient.newCall(request).execute().use { response ->
+                return handleDownloadResponse(response, "GET下载")
+            }
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "[GET下载] 异常: ${e.message}")
+            return null
+        }
+    }
+
+    /**
+     * 方法5: 尝试使用文件下载 API (file_key)
+     * 某些 post 消息中的图片可能需要用文件下载 API
+     */
+    private fun tryDownloadAsFile(token: String, imageKey: String): ByteArray? {
+        try {
+            // 飞书文件下载 API: GET /drive/v1/files/:file_key/download
+            val downloadUrl = "$BASE_URL/drive/v1/files/$imageKey/download"
+
+            AppLogger.d(TAG, "[文件下载] URL: $downloadUrl")
+
+            val request = Request.Builder()
+                .url(downloadUrl)
+                .get()
+                .addHeader("Authorization", "Bearer $token")
+                .build()
+
+            httpClient.newCall(request).execute().use { response ->
+                return handleDownloadResponse(response, "文件下载")
+            }
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "[文件下载] 异常: ${e.message}")
+            return null
+        }
+    }
+
+    /**
+     * 方法6: 尝试获取图片信息并下载 (v2 API)
+     */
+    private fun tryGetImageInfoV2(token: String, imageKey: String): ByteArray? {
+        try {
+            // 飞书可能还有 v2 版本的 API
+            val infoUrl = "$BASE_URL/im/v2/images/$imageKey"
+
+            AppLogger.d(TAG, "[GET信息V2] URL: $infoUrl")
+
+            val request = Request.Builder()
+                .url(infoUrl)
+                .get()
+                .addHeader("Authorization", "Bearer $token")
+                .build()
+
+            httpClient.newCall(request).execute().use { response ->
+                val code = response.code
+                val body = response.body?.string().orEmpty()
+                AppLogger.d(TAG, "[GET信息V2] 响应码: $code, Body: ${body.take(500)}")
+
+                if (response.isSuccessful) {
+                    try {
+                        val json = JSONObject(body)
+                        if (json.optInt("code", -1) == 0) {
+                            val data = json.optJSONObject("data")
+                            val tmpUrl = data?.optString("tmp_url", "")
+                                ?.ifBlank { data?.optString("download_url", "") }
+                                ?.ifBlank { data?.optString("url", "") }
+
+                            if (!tmpUrl.isNullOrBlank()) {
+                                AppLogger.d(TAG, "[GET信息V2] 获取到临时URL: $tmpUrl")
+                                return downloadFromUrlSync(tmpUrl)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        AppLogger.e(TAG, "[GET信息V2] JSON解析失败: ${e.message}")
+                    }
+                }
+            }
+            return null
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "[GET信息V2] 异常: ${e.message}")
+            return null
+        }
+    }
+
+    /**
+     * 处理下载响应
+     */
+    private fun handleDownloadResponse(response: okhttp3.Response, methodTag: String): ByteArray? {
+        val code = response.code
+        val contentType = response.header("Content-Type", "")
+        AppLogger.d(TAG, "[$methodTag] 响应码: $code, Content-Type: $contentType")
+
+        if (response.isSuccessful) {
+            // 检查是否是图片数据
+            if (contentType?.startsWith("image/") == true ||
+                contentType?.startsWith("application/octet-stream") == true ||
+                contentType?.contains("application/") == true && !contentType.contains("json")) {
+                val imageData = response.body?.bytes()
+                if (imageData != null && imageData.isNotEmpty()) {
+                    AppLogger.d(TAG, "[$methodTag] 图片下载成功，大小: ${imageData.size} bytes")
+                    return imageData
+                }
+            }
+
+            // 如果返回 JSON，解析获取临时 URL
+            if (contentType?.contains("application/json") == true || contentType?.contains("text/") == true) {
+                val jsonBody = response.body?.string().orEmpty()
+                AppLogger.d(TAG, "[$methodTag] 返回 JSON: ${jsonBody.take(500)}")
+
+                try {
+                    val jsonResponse = JSONObject(jsonBody)
+                    val respCode = jsonResponse.optInt("code", -1)
+                    if (respCode == 0) {
+                        val data = jsonResponse.optJSONObject("data")
+                        val tmpUrl = data?.optString("tmp_url", "")
+                            ?.ifBlank { data?.optString("download_url", "") }
+                            ?.ifBlank { data?.optString("url", "") }
+
+                        if (!tmpUrl.isNullOrBlank()) {
+                            AppLogger.d(TAG, "[$methodTag] 获取临时URL: $tmpUrl")
+                            return downloadFromUrlSync(tmpUrl)
+                        }
+                    } else {
+                        val errorMsg = jsonResponse.optString("msg", "")
+                        AppLogger.e(TAG, "[$methodTag] API错误: code=$respCode, msg=$errorMsg")
+                        if (errorMsg.contains("permission") || respCode == 99991663) {
+                            AppLogger.e(TAG, "[$methodTag] 权限不足！请开启 'im:resource:read' 权限")
+                        }
+                    }
+                } catch (e: Exception) {
+                    // 不是JSON，可能是直接的图片数据
+                    val bytes = response.body?.bytes()
+                    if (bytes != null && bytes.isNotEmpty() && bytes.size > 100) {
+                        AppLogger.d(TAG, "[$methodTag] 尝试作为二进制数据处理，大小: ${bytes.size}")
+                        return bytes
+                    }
+                }
+            }
+        } else {
+            val errorBody = response.body?.string().orEmpty()
+            AppLogger.e(TAG, "[$methodTag] HTTP失败: $code, body: ${errorBody.take(300)}")
+        }
+
+        return null
+    }
+
+    /**
+     * 同步从URL下载
+     */
+    private fun downloadFromUrlSync(url: String): ByteArray? {
+        try {
+            AppLogger.d(TAG, "从临时URL下载: ${url.take(100)}...")
+
+            val downloadClient = OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(60, TimeUnit.SECONDS)
+                .build()
+
+            val request = Request.Builder()
+                .url(url)
+                .get()
+                .build()
+
+            downloadClient.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val data = response.body?.bytes()
+                    if (data != null && data.isNotEmpty()) {
+                        AppLogger.d(TAG, "临时URL下载成功，大小: ${data.size} bytes")
+                        return data
+                    }
+                } else {
+                    AppLogger.e(TAG, "临时URL下载失败: ${response.code}")
+                }
+            }
+            return null
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "临时URL下载异常: ${e.message}")
+            return null
+        }
+    }
+
+    /**
+     * 从 URL 下载文件
+     */
+    private suspend fun downloadFromUrl(url: String): ByteArray? = withContext(Dispatchers.IO) {
+        try {
+            AppLogger.d(TAG, "从 URL 下载: ${url.take(100)}...")
+
+            val request = Request.Builder()
+                .url(url)
+                .get()
+                .build()
+
+            // 使用新的客户端，不带认证头
+            val downloadClient = OkHttpClient.Builder()
+                .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+
+            downloadClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    AppLogger.e(TAG, "URL 下载失败: ${response.code}")
+                    return@withContext null
+                }
+
+                val data = response.body?.bytes()
+                if (data != null && data.isNotEmpty()) {
+                    AppLogger.d(TAG, "URL 下载成功，大小: ${data.size} bytes")
+                }
+                data
+            }
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "URL 下载异常", e)
+            null
+        }
+    }
 }
