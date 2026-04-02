@@ -907,6 +907,30 @@ class FloatingChatService : Service(), FloatingWindowCallback {
         // ========== 处理文本消息 ==========
         if (userMessage.isBlank()) return null
 
+        // ========== 车内检测命令 ==========
+        val isCarMonitorCommand = userMessage.contains("检测车内") ||
+                                  userMessage.contains("车内检测") ||
+                                  userMessage.contains("监控车内") ||
+                                  userMessage.contains("开始车内监控")
+
+        if (isCarMonitorCommand) {
+            AppLogger.d(TAG, "检测到车内检测命令")
+            val monitorService = CarInteriorMonitorService.getInstance(applicationContext)
+
+            // 如果正在监控，先停止
+            if (monitorService.isMonitoring()) {
+                monitorService.stopMonitoring()
+                feishuService.sendMessage(feishuChatId, "⏹️ 已停止之前的监控，正在启动新监控...")
+            }
+
+            // 启动监控
+            serviceScope.launch {
+                monitorService.startMonitoring(feishuChatId, lifecycleOwner)
+            }
+
+            return null // 已在 startMonitoring 中发送响应
+        }
+
         // 发送确认
         feishuService.sendMessage(feishuChatId, "✅ 收到")
 

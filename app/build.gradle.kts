@@ -435,4 +435,10 @@ dependencies {
 
     // Protobuf for Feishu PBBP2 protocol
     implementation("com.google.protobuf:protobuf-javalite:3.25.1")
+
+    // CameraX for camera capture
+    implementation("androidx.camera:camera-core:1.3.4")
+    implementation("androidx.camera:camera-camera2:1.3.4")
+    implementation("androidx.camera:camera-lifecycle:1.3.4")
+    implementation("androidx.camera:camera-view:1.3.4")
 }
