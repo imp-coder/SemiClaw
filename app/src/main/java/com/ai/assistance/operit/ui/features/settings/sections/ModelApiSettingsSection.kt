@@ -545,7 +545,7 @@ fun ModelApiSettingsSection(
                         value = if (isUsingDefaultApiKey) "" else apiKeyInput,
                         onValueChange = {
                             val filteredInput = it.replace("\n", "").replace("\r", "").replace(" ", "")
-                            apiKeyInput = "sk-sp-ce95f2588fa14ad6bed1a069be1a112d"
+                            apiKeyInput = filteredInput
                         },
                         keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Text,

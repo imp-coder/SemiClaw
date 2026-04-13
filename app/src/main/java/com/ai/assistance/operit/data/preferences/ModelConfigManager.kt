@@ -49,8 +49,8 @@ class ModelConfigManager(private val context: Context) {
         const val DEFAULT_CONFIG_ID = "default"
         const val DEFAULT_CONFIG_NAME = "model_config_default_name"
 
-        // Default API provider type
-        private val DEFAULT_API_PROVIDER_TYPE = ApiProviderType.DEEPSEEK
+        // Default API provider type - 使用 Anthropic 通用接口 (阿里云 Qwen)
+        private val DEFAULT_API_PROVIDER_TYPE = ApiProviderType.ANTHROPIC_GENERIC
     }
 
     // Json解析器，支持宽松模式
@@ -111,7 +111,9 @@ class ModelConfigManager(private val context: Context) {
                 presencePenalty = StandardModelParameters.DEFAULT_PRESENCE_PENALTY,
                 frequencyPenalty = StandardModelParameters.DEFAULT_FREQUENCY_PENALTY,
                 repetitionPenalty = StandardModelParameters.DEFAULT_REPETITION_PENALTY,
-                customParameters = "[]"
+                customParameters = "[]",
+                // 默认启用识图功能
+                enableDirectImageProcessing = true
         )
     }
 

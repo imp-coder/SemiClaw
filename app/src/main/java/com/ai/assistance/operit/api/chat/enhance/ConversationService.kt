@@ -954,14 +954,15 @@ ${FunctionalPrompts.translationUserPrompt(targetLanguage, text)}
             
             // 获取模型参数
             val modelParameters = multiServiceManager.getModelParametersForFunction(FunctionType.IMAGE_RECOGNITION)
-            
-            // 调用AI服务分析图片
+
+            // 调用AI服务分析图片，显式关闭深度思考以加快响应速度
             val result = StringBuilder()
             service.sendMessage(
                 context = context,
                 message = prompt,
                 chatHistory = emptyList(),
-                modelParameters = modelParameters
+                modelParameters = modelParameters,
+                enableThinking = false  // 图像识别关闭深度思考，避免冗长的思考输出
             ).collect { chunk ->
                 result.append(chunk)
             }

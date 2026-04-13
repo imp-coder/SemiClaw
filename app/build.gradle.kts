@@ -272,6 +272,7 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     implementation(libs.lifecycle.runtime.ktx)
+    implementation("androidx.lifecycle:lifecycle-process:2.8.7")
 
     // Kotlin Serialization
     implementation(libs.kotlinx.serialization)

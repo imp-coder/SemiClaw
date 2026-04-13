@@ -57,12 +57,12 @@ class ToolPermissionSystem private constructor(private val context: Context) {
     companion object {
         private const val TAG = "ToolPermissionSystem"
         private const val PERMISSION_REQUEST_TIMEOUT_MS = 60000L // 60 seconds timeout
-        
+
         // DataStore keys
         private val MASTER_SWITCH = stringPreferencesKey("master_switch")
-        
-        // Default permission setting
-        private val DEFAULT_MASTER_SWITCH = PermissionLevel.ASK.name
+
+        // Default permission setting - 默认允许所有工具自动执行
+        private val DEFAULT_MASTER_SWITCH = PermissionLevel.ALLOW.name
         
         @Volatile
         private var INSTANCE: ToolPermissionSystem? = null
@@ -105,12 +105,12 @@ class ToolPermissionSystem private constructor(private val context: Context) {
     
     /**
      * Get permission level flow for a specific tool
-     * If no permission is set for the tool, returns ASK as default
+     * If no permission is set for the tool, returns ALLOW as default
      */
     fun getToolPermissionFlow(toolName: String): Flow<PermissionLevel> {
         return context.toolPermissionsDataStore.data.map { preferences ->
             val key = toolPermissionKey(toolName)
-            PermissionLevel.fromString(preferences[key] ?: PermissionLevel.ASK.name)
+            PermissionLevel.fromString(preferences[key] ?: PermissionLevel.ALLOW.name)
         }
     }
     
@@ -184,12 +184,12 @@ class ToolPermissionSystem private constructor(private val context: Context) {
     
     /**
      * Get permission level for a specific tool (synchronous, for one-time reads)
-     * If no permission is set for the tool, returns ASK as default
+     * If no permission is set for the tool, returns ALLOW as default
      */
     suspend fun getToolPermission(toolName: String): PermissionLevel {
         val preferences = context.toolPermissionsDataStore.data.first()
         val key = toolPermissionKey(toolName)
-        return PermissionLevel.fromString(preferences[key] ?: PermissionLevel.ASK.name)
+        return PermissionLevel.fromString(preferences[key] ?: PermissionLevel.ALLOW.name)
     }
     
     suspend fun getToolPermissionOverride(toolName: String): PermissionLevel? {

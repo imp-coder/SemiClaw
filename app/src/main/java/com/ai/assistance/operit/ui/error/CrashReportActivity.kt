@@ -207,11 +207,23 @@ private fun restartApp(context: Context) {
     val pendingIntent = PendingIntent.getActivity(context, 0, intent, flags)
 
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-    alarmManager.setExact(
-        AlarmManager.RTC,
-        System.currentTimeMillis() + 200,
-        pendingIntent
-    )
+
+    // Use setAndAllowWhileIdle instead of setExact to avoid requiring SCHEDULE_EXACT_ALARM permission
+    // This works even when the device is in low-power idle mode
+    try {
+        alarmManager.setAndAllowWhileIdle(
+            AlarmManager.RTC,
+            System.currentTimeMillis() + 200,
+            pendingIntent
+        )
+    } catch (e: SecurityException) {
+        // Fallback to regular set() if setAndAllowWhileIdle also fails
+        alarmManager.set(
+            AlarmManager.RTC,
+            System.currentTimeMillis() + 200,
+            pendingIntent
+        )
+    }
 
     (context as? Activity)?.finishAffinity()
     android.os.Process.killProcess(android.os.Process.myPid())

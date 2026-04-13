@@ -340,7 +340,31 @@ class OperitApplication : Application(), ImageLoaderFactory, WorkConfiguration.P
                 AppLogger.e(TAG, "无障碍服务预绑定失败", e)
             }
         }
-        
+
+        // 自动启动飞书服务
+        applicationScope.launch {
+            AppLogger.d(TAG, "【启动计时】开始自动启动飞书服务...")
+            val feishuStartTime = System.currentTimeMillis()
+            try {
+                startFeishuServiceAuto()
+                AppLogger.d(TAG, "【启动计时】飞书服务自动启动完成（异步） - 耗时: ${System.currentTimeMillis() - feishuStartTime}ms")
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "飞书服务自动启动失败", e)
+            }
+        }
+
+        // 自动初始化大模型配置和用户偏好
+        applicationScope.launch {
+            AppLogger.d(TAG, "【启动计时】开始自动初始化配置...")
+            val configStartTime = System.currentTimeMillis()
+            try {
+                autoInitializeConfig()
+                AppLogger.d(TAG, "【启动计时】配置自动初始化完成（异步） - 耗时: ${System.currentTimeMillis() - configStartTime}ms")
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "配置自动初始化失败", e)
+            }
+        }
+
         val totalTime = System.currentTimeMillis() - startTime
         AppLogger.d(TAG, "【启动计时】应用启动全部完成 - 总耗时: ${totalTime}ms")
     }
@@ -392,6 +416,72 @@ class OperitApplication : Application(), ImageLoaderFactory, WorkConfiguration.P
             }
         } catch (e: Exception) {
             AppLogger.e(TAG, "按始终监听状态启动 AIForegroundService 失败: ${e.message}", e)
+        }
+    }
+
+    /**
+     * 自动启动飞书服务
+     *
+     * 在应用启动时检查飞书配置，如果配置已存在则自动启用并启动服务
+     */
+    private suspend fun startFeishuServiceAuto() {
+        try {
+            val feishuPreferences = com.ai.assistance.operit.data.preferences.FeishuPreferences.getInstance(applicationContext)
+            val config = feishuPreferences.getFeishuConfig()
+
+            // 检查是否有飞书配置（内置默认凭证会自动返回 true）
+            if (config.isConfigured()) {
+                AppLogger.d(TAG, "飞书配置已存在，自动启用飞书集成")
+
+                // 自动启用飞书开关
+                feishuPreferences.saveFeishuEnabled(true)
+
+                // 延迟启动飞书自动启动服务（给 UI 一个缓冲时间）
+                kotlinx.coroutines.delay(1000)
+
+                // 启动飞书自动启动服务
+                com.ai.assistance.operit.services.FeishuAutoStartService.start(applicationContext)
+                AppLogger.d(TAG, "飞书自动启动服务已启动")
+            } else {
+                AppLogger.d(TAG, "飞书配置不存在，跳过自动启动")
+            }
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "自动启动飞书服务失败", e)
+        }
+    }
+
+    /**
+     * 自动初始化配置
+     *
+     * 在应用启动时自动：
+     * 1. 初始化大模型配置（使用默认的阿里云 Qwen 模型）
+     * 2. 设置用户偏好为已初始化（跳过偏好引导页面）
+     */
+    private suspend fun autoInitializeConfig() {
+        try {
+            // 初始化模型配置
+            val modelConfigManager = com.ai.assistance.operit.data.preferences.ModelConfigManager(applicationContext)
+            modelConfigManager.initializeIfNeeded()
+            AppLogger.d(TAG, "模型配置已初始化")
+
+            // 自动初始化用户偏好（跳过偏好引导页面）
+            val userPrefsManager = UserPreferencesManager.getInstance(applicationContext)
+            if (!userPrefsManager.isPreferencesInitialized()) {
+                AppLogger.d(TAG, "自动设置用户偏好为已初始化")
+                // 使用 updateProfileCategory 方法，传入空值来初始化配置
+                userPrefsManager.updateProfileCategory(
+                    birthDate = null,
+                    gender = null,
+                    occupation = null,
+                    personality = null,
+                    identity = null,
+                    aiStyle = null
+                )
+            } else {
+                AppLogger.d(TAG, "用户偏好已初始化，跳过")
+            }
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "自动初始化配置失败", e)
         }
     }
 

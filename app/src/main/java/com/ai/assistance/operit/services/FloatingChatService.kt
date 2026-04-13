@@ -925,7 +925,7 @@ class FloatingChatService : Service(), FloatingWindowCallback {
 
             // 启动监控
             serviceScope.launch {
-                monitorService.startMonitoring(feishuChatId, lifecycleOwner)
+                monitorService.startMonitoring(feishuChatId)
             }
 
             return null // 已在 startMonitoring 中发送响应
@@ -942,11 +942,30 @@ class FloatingChatService : Service(), FloatingWindowCallback {
             AppLogger.w(TAG, "取消之前消息失败", e)
         }
 
-        // 检查是否需要截图（放宽匹配条件）
-        val needScreenshot = userMessage.contains("截") && userMessage.contains("图") ||
-                              userMessage.contains("截屏") ||
-                              userMessage.contains("screenshot") ||
-                              userMessage.contains("屏幕")
+        // 检查是否需要截图 - 扩展更多触发词
+        val needScreenshot = userMessage.contains("截图") ||
+                userMessage.contains("截屏") ||
+                userMessage.contains("截个屏") ||
+                userMessage.contains("截个图") ||
+                userMessage.contains("截一屏") ||
+                userMessage.contains("截一张") ||
+                userMessage.contains("screenshot") ||
+                userMessage.contains("screen capture") ||
+                userMessage.contains("capture screen") ||
+                (userMessage.contains("截") && userMessage.contains("图")) ||
+                (userMessage.contains("截") && userMessage.contains("屏")) ||
+                (userMessage.contains("看") && userMessage.contains("屏幕")) ||
+                (userMessage.contains("看") && userMessage.contains("画面")) ||
+                (userMessage.contains("看") && userMessage.contains("当前")) ||
+                userMessage.contains("屏幕内容") ||
+                userMessage.contains("当前屏幕") ||
+                userMessage.contains("当前画面") ||
+                userMessage.contains("手机屏幕") ||
+                userMessage.contains("手机画面") ||
+                userMessage.contains("快照") ||
+                userMessage.contains("抓图") ||
+                userMessage.contains("截取屏幕") ||
+                userMessage.contains("截取画面")
 
         // 记录截图目录初始状态（使用实际的截图保存路径）
         val screenshotDir = com.ai.assistance.operit.util.OperitPaths.cleanOnExitDir()
@@ -1139,6 +1158,7 @@ class FloatingChatService : Service(), FloatingWindowCallback {
                         AppLogger.d(TAG, "等待AI响应内容... ($waitCount/20)")
                     }
 
+                    // 确保始终有回复 - 如果 AI 没有返回内容，发送错误提示
                     if (lastAiContent.isNotBlank()) {
                         AppLogger.d(TAG, "处理已完成，发送最终结果")
                         val cleanContent = cleanFeishuResponseText(lastAiContent)
@@ -1146,10 +1166,18 @@ class FloatingChatService : Service(), FloatingWindowCallback {
                         AppLogger.d(TAG, "发送到飞书: ${contentToSend.take(50)}...")
                         feishuService.sendMessage(feishuChatId, contentToSend)
                     } else {
-                        AppLogger.w(TAG, "处理完成但无 AI 回复内容")
+                        // AI 没有返回任何内容，发送错误提示
+                        AppLogger.w(TAG, "AI 未返回任何内容")
+                        feishuService.sendMessage(feishuChatId, "抱歉，我暂时无法处理您的请求。请稍后重试或检查 AI 配置是否正确。")
                     }
                     break
                 }
+            }
+
+            // 超时检查 - 如果循环结束但仍在处理中或 AI 没有返回内容
+            if (System.currentTimeMillis() - startTime >= maxWaitTime && lastAiContent.isBlank()) {
+                AppLogger.w(TAG, "消息处理超时")
+                feishuService.sendMessage(feishuChatId, "处理超时，请稍后重试。如果问题持续，请检查网络连接或 AI 配置。")
             }
 
             AppLogger.d(TAG, "========== 飞书消息处理结束 ==========")

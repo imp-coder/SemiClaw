@@ -53,9 +53,8 @@ class FeishuWebSocketService(private val context: Context) {
     // 消息通道
     private val messageChannel = Channel<FeishuIncomingMessage>(Channel.UNLIMITED)
 
-    // 消息去重：记录已处理的消息 ID
-    private val processedMessageIds = mutableSetOf<String>()
-    private val maxProcessedIds = 100  // 最多保留 100 条消息 ID
+    // 消息有效期：只处理5分钟内的新消息，超过5分钟的旧消息直接丢弃
+    private val messageMaxAgeMs = 5 * 60 * 1000L
 
     private val wsClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
@@ -79,34 +78,29 @@ class FeishuWebSocketService(private val context: Context) {
     fun getMessageChannel(): Channel<FeishuIncomingMessage> = messageChannel
 
     /**
-     * 发送消息到通道（带去重）
+     * 发送消息到通道（不记录，只检查消息年龄）
      */
     private fun sendMessageToChannel(message: FeishuIncomingMessage) {
-        // 使用 messageId 或 chatId+content 作为唯一标识
+        val currentTime = System.currentTimeMillis()
+
+        // 使用 messageId 作为日志标识
         val uniqueKey = message.messageId?.takeIf { it.isNotBlank() } ?: run {
             "${message.chatId}_${message.content?.take(50) ?: ""}"
         }
 
-        synchronized(processedMessageIds) {
-            if (uniqueKey in processedMessageIds) {
-                AppLogger.d(TAG, "消息已处理过，跳过: $uniqueKey")
+        // 只检查消息创建时间，超过5分钟的旧消息直接丢弃
+        message.createTime?.let { msgTime ->
+            // 飞书时间戳是秒级的，需要转换为毫秒
+            val msgTimeMs = if (msgTime < 10000000000L) msgTime * 1000 else msgTime
+            val messageAge = currentTime - msgTimeMs
+            if (messageAge > messageMaxAgeMs) {
+                AppLogger.w(TAG, "消息过旧，丢弃: $uniqueKey, 消息年龄: ${messageAge / 1000}秒")
                 return
             }
-
-            // 添加到已处理集合
-            processedMessageIds.add(uniqueKey)
-
-            // 保持集合大小限制
-            if (processedMessageIds.size > maxProcessedIds) {
-                val iterator = processedMessageIds.iterator()
-                repeat(processedMessageIds.size - maxProcessedIds) {
-                    if (iterator.hasNext()) iterator.next()
-                    if (iterator.hasNext()) iterator.remove()
-                }
-            }
+            AppLogger.d(TAG, "消息年龄检查通过: ${messageAge / 1000}秒, $uniqueKey")
         }
 
-        // 发送到通道
+        // 发送到通道，不记录任何去重信息
         CoroutineScope(Dispatchers.IO).launch {
             messageChannel.send(message)
         }
@@ -277,6 +271,7 @@ class FeishuWebSocketService(private val context: Context) {
         webSocket?.close(1000, "Normal closure")
         webSocket = null
         isConnected = false
+        AppLogger.d(TAG, "WebSocket 已断开")
     }
 
     /**

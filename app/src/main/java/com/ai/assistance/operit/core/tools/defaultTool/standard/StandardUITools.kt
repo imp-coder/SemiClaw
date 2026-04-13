@@ -569,6 +569,28 @@ open class StandardUITools(protected val context: Context) : ToolImplementations
             val file = File(screenshotDir, "$shortName.png")
             AppLogger.d(TAG, "captureScreenshotToFile: 目标文件: ${file.absolutePath}")
 
+            // 0) 首先检查无障碍服务是否可用，如果可用则尝试使用无障碍截图
+            val localService = com.ai.assistance.operit.core.services.OperitAccessibilityService.instance
+            if (localService != null && com.ai.assistance.operit.core.services.OperitAccessibilityService.isServiceConnected) {
+                AppLogger.d(TAG, "captureScreenshotToFile: 检测到无障碍服务可用，尝试无障碍截图...")
+                try {
+                    val success = localService.takeScreenshot(file.absolutePath, "png")
+                    if (success && file.exists() && file.length() > 0) {
+                        AppLogger.d(TAG, "captureScreenshotToFile: 无障碍服务截图成功")
+                        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        BitmapFactory.decodeFile(file.absolutePath, options)
+                        val dimensions = if (options.outWidth > 0 && options.outHeight > 0) {
+                            Pair(options.outWidth, options.outHeight)
+                        } else {
+                            null
+                        }
+                        return Pair(file.absolutePath, dimensions)
+                    }
+                } catch (e: Exception) {
+                    AppLogger.w(TAG, "captureScreenshotToFile: 无障碍截图异常: ${e.message}")
+                }
+            }
+
             // 1) Check if we have a valid MediaProjection token
             if (MediaProjectionHolder.mediaProjection == null) {
                 AppLogger.d(TAG, "captureScreenshotToFile: Requesting MediaProjection permission...")

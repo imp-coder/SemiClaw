@@ -6970,5 +6970,9 @@
     <!-- Feishu Integration -->
     <string name="feishu_settings">飞书集成</string>
     <string name="feishu_settings_subtitle">配置飞书API，支持发送消息、管理任务等</string>
+    <string name="feishu_service_channel_name">飞书服务</string>
+    <string name="feishu_service_channel_description">飞书消息接收和处理服务</string>
+    <string name="feishu_service_notification_title">飞书服务运行中</string>
+    <string name="feishu_service_notification_text">正在监听飞书消息</string>
     <string name="settings_section_integrations">集成设置</string>
 </resources>

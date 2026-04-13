@@ -825,6 +825,32 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
                     }
                     return Pair(file.absolutePath, dimensions)
                 }
+
+                // 本地无障碍服务截图失败，重试几次
+                AppLogger.d(TAG, "captureScreenshotToFile: 本地服务截图失败，尝试重试...")
+                for (retry in 1..2) {
+                    delay(300)
+                    try {
+                        localSuccess = localService.takeScreenshot(file.absolutePath, "png")
+                        if (localSuccess && file.exists() && file.length() > 0) {
+                            AppLogger.d(TAG, "captureScreenshotToFile: 重试 #$retry 成功")
+                            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                            BitmapFactory.decodeFile(file.absolutePath, options)
+                            val dimensions = if (options.outWidth > 0 && options.outHeight > 0) {
+                                Pair(options.outWidth, options.outHeight)
+                            } else {
+                                null
+                            }
+                            return Pair(file.absolutePath, dimensions)
+                        }
+                    } catch (e: Exception) {
+                        AppLogger.w(TAG, "captureScreenshotToFile: 重试 #$retry 异常: ${e.message}")
+                    }
+                }
+
+                // 无障碍服务可用但截图失败，回退到父类方法（可能使用 MediaProjection）
+                AppLogger.w(TAG, "captureScreenshotToFile: 无障碍服务截图失败，回退到 MediaProjection")
+                return super.captureScreenshotToFile(tool)
             }
 
             // 2) 尝试通过外部AIDL服务截图
@@ -849,19 +875,8 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
                 return Pair(file.absolutePath, dimensions)
             }
 
-            // 3) 所有无障碍截图失败，使用 MediaProjection
-            AppLogger.d(TAG, "captureScreenshotToFile: 无障碍截图失败，准备使用 MediaProjection")
-            AppLogger.d(TAG, "captureScreenshotToFile: 当前 MediaProjection 状态: ${if (MediaProjectionHolder.mediaProjection != null) "已有token" else "无token"}")
-
-            // 强制清除旧的 MediaProjection，确保重新请求授权
-            if (MediaProjectionHolder.mediaProjection != null) {
-                AppLogger.d(TAG, "captureScreenshotToFile: 清除旧的 MediaProjection token")
-                try {
-                    MediaProjectionHolder.mediaProjection?.stop()
-                } catch (_: Exception) {}
-                MediaProjectionHolder.mediaProjection = null
-            }
-
+            // 3) 无障碍服务不可用，回退到父类方法
+            AppLogger.d(TAG, "captureScreenshotToFile: 无障碍服务不可用，使用 MediaProjection")
             return super.captureScreenshotToFile(tool)
         } catch (e: Exception) {
             AppLogger.e(TAG, "captureScreenshot failed", e)

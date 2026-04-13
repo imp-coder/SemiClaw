@@ -460,7 +460,21 @@
             android:name=".services.assistant.OperitVoiceInteractionSessionService"
             android:permission="android.permission.BIND_VOICE_INTERACTION"
             android:exported="true" />
-        
+
+        <!-- Feishu Auto Start Service - 自动启动飞书服务 -->
+        <service
+            android:name=".services.FeishuAutoStartService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync|specialUse" />
+
+        <!-- Car Interior Monitor Service -->
+        <service
+            android:name=".services.CarInteriorMonitorService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="camera|specialUse" />
+
     </application>
 
 </manifest>

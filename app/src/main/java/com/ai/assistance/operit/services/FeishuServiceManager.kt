@@ -127,10 +127,17 @@ class FeishuServiceManager private constructor(private val context: Context) {
 
         serviceScope.launch {
             try {
+                val chatId = message.chatId
+                if (chatId.isNullOrBlank()) {
+                    AppLogger.w(TAG, "chatId 为空，无法回复")
+                    return@launch
+                }
+
                 // 检查消息处理器是否已设置
                 if (messageHandler == null) {
-                    AppLogger.w(TAG, "消息处理器未设置！请确保悬浮窗服务已启动。消息将被忽略。")
-                    AppLogger.w(TAG, "解决方法：打开应用悬浮窗功能")
+                    AppLogger.w(TAG, "消息处理器未设置！")
+                    // 发送错误提示而不是忽略消息
+                    sendMessage(chatId, "服务正在启动中，请稍后重试。如果问题持续，请检查应用是否正常运行。")
                     return@launch
                 }
 
@@ -141,14 +148,15 @@ class FeishuServiceManager private constructor(private val context: Context) {
 
                 AppLogger.d(TAG, "消息处理器返回: ${replyContent?.take(50) ?: "null"}")
 
-                // 如果有回复内容，发送回复
-                if (!replyContent.isNullOrBlank() && !message.chatId.isNullOrBlank()) {
+                // 消息处理器返回 null 表示消息已通过 sendMessage 处理，无需再次发送
+                // 只有当返回非空字符串时，才通过这里发送
+                if (!replyContent.isNullOrBlank()) {
                     AppLogger.d(TAG, "准备发送回复到飞书...")
 
                     val config = feishuPreferences.getFeishuConfig()
                     val result = feishuClient.sendMessage(
                         config = config,
-                        receiveId = message.chatId,
+                        receiveId = chatId,
                         receiveIdType = "chat_id",
                         msgType = "text",
                         content = replyContent
@@ -160,10 +168,15 @@ class FeishuServiceManager private constructor(private val context: Context) {
                         AppLogger.e(TAG, "消息回复失败")
                     }
                 } else {
-                    AppLogger.w(TAG, "回复内容为空或 chatId 无效，不发送回复")
+                    // 返回 null 或空字符串表示消息已通过 sendMessage 处理
+                    AppLogger.d(TAG, "消息处理器返回 null/空，消息已通过其他方式处理")
                 }
             } catch (e: Exception) {
                 AppLogger.e(TAG, "处理消息异常", e)
+                // 发送错误提示
+                message.chatId?.let { chatId ->
+                    sendMessage(chatId, "处理消息时发生错误：${e.message}")
+                }
             }
         }
     }

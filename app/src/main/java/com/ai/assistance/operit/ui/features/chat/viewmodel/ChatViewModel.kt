@@ -424,23 +424,10 @@ class ChatViewModel(private val context: Context) : ViewModel() {
         // 初始化语音服务
         initializeVoiceService()
 
-        // 配置提示只跟随当前活跃聊天配置，避免被其他未使用配置误伤。
+        // 配置提示已禁用 - 默认使用内置密钥，无需提示用户配置
+        // 用户可在设置中自行修改配置
         viewModelScope.launch {
-            combine(
-                isApiConfigInitialized,
-                apiKey,
-                apiProviderType,
-                apiEndpoint
-            ) { initialized, currentApiKey, currentProviderType, currentApiEndpoint ->
-                initialized &&
-                    ApiProviderConfigs.requiresApiKey(
-                        currentProviderType,
-                        currentApiEndpoint
-                    ) &&
-                    currentApiKey == ApiPreferences.DEFAULT_API_KEY
-            }.collect { shouldShow ->
-                _shouldShowConfigDialog.value = shouldShow
-            }
+            _shouldShowConfigDialog.value = false
         }
     }
 
