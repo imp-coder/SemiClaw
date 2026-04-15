@@ -77,41 +77,6 @@ class CarInteriorMonitorService private constructor(private val context: Context
             return false
         }
 
-        // 预热 AI 服务，避免第一次检测时创建服务实例和网络连接的延迟
-        try {
-            AppLogger.d(TAG, "预热 AI 识图服务...")
-            val multiServiceManager = MultiServiceManager(context)
-            val imageService = multiServiceManager.getServiceForFunction(FunctionType.IMAGE_RECOGNITION)
-            // 保存引用，用于超时时取消请求
-            currentMultiServiceManager = multiServiceManager
-
-            // 发送一个简单的预热请求，建立网络连接池（缩短超时时间到10秒）
-            AppLogger.d(TAG, "发送预热请求建立网络连接...")
-            val warmupJob = serviceScope.async {
-                val warmupResult = StringBuilder()
-                imageService.sendMessage(
-                    context = context,
-                    message = "预热",
-                    chatHistory = emptyList(),
-                    modelParameters = emptyList(),
-                    enableThinking = false
-                ).collect { chunk ->
-                    warmupResult.append(chunk)
-                }
-            }
-            // 预热最多等待10秒，超时则取消并继续（不阻塞主流程）
-            withTimeoutOrNull(10_000L) {
-                warmupJob.await()
-            }
-            if (warmupJob.isActive) {
-                AppLogger.d(TAG, "预热请求超时，取消并继续")
-                warmupJob.cancel()
-            }
-            AppLogger.d(TAG, "AI 识图服务预热完成，网络连接已建立")
-        } catch (e: Exception) {
-            AppLogger.e(TAG, "AI 服务预热失败，将使用实时初始化", e)
-        }
-
         isMonitoring = true
         currentChatId = chatId
         feishuService.sendMessage(chatId, "🚗 车内检测已启动，持续1分钟，发现异常会自动告警")

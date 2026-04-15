@@ -9,9 +9,6 @@ object ImageBitmapLimiter {
     private const val UI_MAX_PIXELS = 12_000_000L
     private const val UI_MAX_DIMENSION = 4096
 
-    private const val AI_MAX_PIXELS = 12_000_000L
-    private const val AI_MAX_DIMENSION = 4096
-
     data class LimitedImage(
         val base64: String,
         val mimeType: String
@@ -68,9 +65,9 @@ object ImageBitmapLimiter {
 
         val bounds = decodeImageBounds(bytes) ?: return null
         val needsDownsample =
-            bounds.width > AI_MAX_DIMENSION ||
-                bounds.height > AI_MAX_DIMENSION ||
-                bounds.width.toLong() * bounds.height.toLong() > AI_MAX_PIXELS
+            bounds.width > UI_MAX_DIMENSION ||
+                bounds.height > UI_MAX_DIMENSION ||
+                bounds.width.toLong() * bounds.height.toLong() > UI_MAX_PIXELS
 
         if (!needsDownsample) {
             return LimitedImage(
@@ -82,8 +79,8 @@ object ImageBitmapLimiter {
         val sampleSizeForLog = calculateSampleSize(
             srcWidth = bounds.width,
             srcHeight = bounds.height,
-            maxPixels = AI_MAX_PIXELS,
-            maxDimension = AI_MAX_DIMENSION
+            maxPixels = UI_MAX_PIXELS,
+            maxDimension = UI_MAX_DIMENSION
         )
         AppLogger.i(
             "ImageBitmapLimiter",
@@ -92,15 +89,15 @@ object ImageBitmapLimiter {
 
         val bitmap = decodeDownsampledBitmap(
             bytes = bytes,
-            maxPixels = AI_MAX_PIXELS,
-            maxDimension = AI_MAX_DIMENSION
+            maxPixels = UI_MAX_PIXELS,
+            maxDimension = UI_MAX_DIMENSION
         ) ?: return null
 
         try {
             val format = compressFormatForMimeType(mimeType) ?: return null
             val quality = when (format) {
                 Bitmap.CompressFormat.PNG -> 100
-                else -> 95
+                else -> 90
             }
 
             val outBytes = encodeBitmap(bitmap, format, quality)

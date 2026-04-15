@@ -17,7 +17,7 @@ import java.util.UUID
  */
 object ImagePoolManager {
     private const val TAG = "ImagePoolManager"
-    
+
     // 可配置的池子大小限制
     var maxPoolSize = 20 // 默认最多缓存20张图片
         set(value) {
@@ -26,7 +26,7 @@ object ImagePoolManager {
                 AppLogger.d(TAG, "池子大小限制已更新为: $value")
             }
         }
-    
+
     // 本地缓存目录（需要在使用前初始化）
     private var cacheDir: File? = null
 
@@ -35,7 +35,7 @@ object ImagePoolManager {
         val base64: String,
         val mimeType: String
     )
-    
+
     /**
      * 初始化图片池，设置本地缓存目录
      * @param cacheDirPath 本地缓存目录路径
@@ -125,7 +125,7 @@ object ImagePoolManager {
             val id = UUID.randomUUID().toString()
             val imageData = ImageData(base64, finalMimeType)
             imagePool[id] = imageData
-            
+
             // 保存到本地缓存
             saveToDisk(id, imageData)
 
@@ -165,7 +165,7 @@ object ImagePoolManager {
             AppLogger.d(TAG, "从内存缓存获取图片: $id")
             return imageData
         }
-        
+
         // 如果内存中没有，尝试从磁盘加载
         imageData = loadFromDisk(id)
         if (imageData != null) {
@@ -173,7 +173,7 @@ object ImagePoolManager {
             imagePool[id] = imageData
             return imageData
         }
-        
+
         AppLogger.w(TAG, "图片不存在: $id")
         return null
     }
@@ -258,7 +258,7 @@ object ImagePoolManager {
             null
         }
     }
-    
+
     /**
      * 保存图片数据到磁盘
      */
@@ -267,46 +267,46 @@ object ImagePoolManager {
             AppLogger.w(TAG, "缓存目录未初始化，跳过磁盘保存")
             return
         }
-        
+
         try {
             val dataFile = File(cacheDir, "$id.dat")
             val metaFile = File(cacheDir, "$id.meta")
-            
+
             // 保存base64数据
             FileOutputStream(dataFile).use { it.write(imageData.base64.toByteArray()) }
             // 保存MIME类型
             FileOutputStream(metaFile).use { it.write(imageData.mimeType.toByteArray()) }
-            
+
             AppLogger.d(TAG, "图片已保存到磁盘: $id")
         } catch (e: Exception) {
             AppLogger.e(TAG, "保存图片到磁盘失败: $id", e)
         }
     }
-    
+
     /**
      * 从磁盘加载单个图片
      */
     private fun loadFromDisk(id: String): ImageData? {
         if (cacheDir == null) return null
-        
+
         try {
             val dataFile = File(cacheDir, "$id.dat")
             val metaFile = File(cacheDir, "$id.meta")
-            
+
             if (!dataFile.exists() || !metaFile.exists()) {
                 return null
             }
-            
+
             val base64 = FileInputStream(dataFile).use { String(it.readBytes()) }
             val mimeType = FileInputStream(metaFile).use { String(it.readBytes()) }
-            
+
             return ImageData(base64, mimeType)
         } catch (e: Exception) {
             AppLogger.e(TAG, "从磁盘加载图片失败: $id", e)
             return null
         }
     }
-    
+
     /**
      * 启动时从磁盘加载所有缓存的图片
      */
@@ -318,10 +318,10 @@ object ImagePoolManager {
     @Synchronized
     private fun loadAllFromDisk() {
         if (cacheDir == null || !cacheDir!!.exists()) return
-        
+
         try {
             val files = cacheDir!!.listFiles { file -> file.extension == "dat" } ?: return
-            
+
             var loadedCount = 0
             for (file in files) {
                 val id = file.nameWithoutExtension
@@ -331,38 +331,38 @@ object ImagePoolManager {
                     loadedCount++
                 }
             }
-            
+
             AppLogger.d(TAG, "从磁盘加载了 $loadedCount 张图片到内存")
         } catch (e: Exception) {
             AppLogger.e(TAG, "从磁盘加载图片失败", e)
         }
     }
-    
+
     /**
      * 从磁盘删除图片
      */
     private fun deleteFromDisk(id: String) {
         if (cacheDir == null) return
-        
+
         try {
             val dataFile = File(cacheDir, "$id.dat")
             val metaFile = File(cacheDir, "$id.meta")
-            
+
             dataFile.delete()
             metaFile.delete()
-            
+
             AppLogger.d(TAG, "从磁盘删除图片: $id")
         } catch (e: Exception) {
             AppLogger.e(TAG, "从磁盘删除图片失败: $id", e)
         }
     }
-    
+
     /**
      * 清空磁盘缓存
      */
     private fun clearDiskCache() {
         if (cacheDir == null || !cacheDir!!.exists()) return
-        
+
         try {
             cacheDir!!.listFiles()?.forEach { it.delete() }
             AppLogger.d(TAG, "已清空磁盘缓存")
@@ -371,4 +371,3 @@ object ImagePoolManager {
         }
     }
 }
-

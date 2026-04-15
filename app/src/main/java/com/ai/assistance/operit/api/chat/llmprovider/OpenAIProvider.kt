@@ -2224,19 +2224,9 @@ open class OpenAIProvider(
                 lastException = e
                 emitter.emitRollback(requestSavepointId)
                 val errorText = e.message ?: context.getString(R.string.openai_error_network_interrupted)
-                retryCount = handleRetryableError(
-                    context,
-                    e,
-                    retryCount,
-                    maxRetries,
-                    errorText,
-                    errorText,
-                    errorText,
-                    enableRetry,
-                    onNonFatalError
-                ) { retryNumber ->
-                    "【${context.getString(R.string.openai_retry_with_count, errorText, retryNumber)}】"
-                }
+                // NonRetriableException（如400错误-模型不支持）不应重试，直接抛出
+                AppLogger.e("AIService", "【发送消息】不可重试错误，停止请求: $errorText", e)
+                throw IOException(errorText, e)
             } catch (e: SocketTimeoutException) {
                 lastException = e
                 emitter.emitRollback(requestSavepointId)

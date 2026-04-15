@@ -670,15 +670,25 @@ class ClaudeProvider(
 
     // 创建请求
     private suspend fun createRequest(requestBody: RequestBody): Request {
-        val currentApiKey = apiKeyProvider.getApiKey()
+        val currentApiKey = apiKeyProvider.getApiKey().trim()
         val completedEndpoint = EndpointCompleter.completeEndpoint(apiEndpoint, providerType)
         val builder =
                 Request.Builder()
                         .url(completedEndpoint)
                         .post(requestBody)
-                        .addHeader("x-api-key", currentApiKey)
-                        .addHeader("anthropic-version", ANTHROPIC_VERSION)
                         .addHeader("Content-Type", "application/json")
+
+        // 根据Provider类型选择认证方式
+        // ANTHROPIC_GENERIC（如DashScope兼容端点）使用Bearer认证
+        // 原生ANTHROPIC使用x-api-key认证
+        if (providerType == ApiProviderType.ANTHROPIC_GENERIC) {
+            builder.addHeader("Authorization", "Bearer $currentApiKey")
+            AppLogger.d("AIService", "使用Bearer认证（兼容端点模式）")
+        } else {
+            builder.addHeader("x-api-key", currentApiKey)
+            builder.addHeader("anthropic-version", ANTHROPIC_VERSION)
+            AppLogger.d("AIService", "使用x-api-key认证（原生Anthropic模式）")
+        }
 
         // 添加自定义请求头
         customHeaders.forEach { (key, value) ->
@@ -1226,19 +1236,9 @@ class ClaudeProvider(
                 lastException = e
                 emitRollback(requestSavepointId)
                 val errorText = e.message ?: context.getString(R.string.provider_error_network_interrupted)
-                retryCount = handleRetryableError(
-                    context,
-                    e,
-                    retryCount,
-                    maxRetries,
-                    errorText,
-                    errorText,
-                    errorText,
-                    enableRetry,
-                    onNonFatalError
-                ) { retryNumber ->
-                    context.getString(R.string.provider_error_retry_message, errorText, retryNumber)
-                }
+                // NonRetriableException（如400错误-模型不支持）不应重试，直接抛出
+                AppLogger.e("AIService", "【Claude】不可重试错误，停止请求: $errorText", e)
+                throw IOException(errorText, e)
             } catch (e: SocketTimeoutException) {
                 lastException = e
                 emitRollback(requestSavepointId)

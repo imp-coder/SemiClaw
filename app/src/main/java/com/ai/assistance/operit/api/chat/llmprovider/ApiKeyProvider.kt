@@ -20,8 +20,9 @@ interface ApiKeyProvider {
  */
 class SingleApiKeyProvider(private val apiKey: String) : ApiKeyProvider {
     override suspend fun getApiKey(): String {
-        AppLogger.d("ApiKeyProvider", "Using single API key: ${apiKey.take(4)}...${apiKey.takeLast(4)}")
-        return apiKey
+        val trimmedKey = apiKey.trim()
+        AppLogger.d("ApiKeyProvider", "Using single API key: ${trimmedKey.take(4)}...${trimmedKey.takeLast(4)}")
+        return trimmedKey
     }
 }
 
@@ -65,8 +66,9 @@ class MultiApiKeyProvider(
                 }
                 // 如果池为空，尝试回退到单key
                 if (config.apiKey.isNotBlank()) {
-                    AppLogger.d("ApiKeyProvider", "Config ${config.name}: No enabled keys in pool, falling back to single API key: sk-...${config.apiKey.takeLast(4)}")
-                    return@withLock config.apiKey
+                    val trimmedFallback = config.apiKey.trim()
+                    AppLogger.d("ApiKeyProvider", "Config ${config.name}: No enabled keys in pool, falling back to single API key: sk-...${trimmedFallback.takeLast(4)}")
+                    return@withLock trimmedFallback
                 }
                 AppLogger.e("ApiKeyProvider", "Config ${config.name}: API key pool is empty or all keys are disabled, and no fallback API key is available")
                 throw IllegalStateException("API key pool for ${config.name} is empty or all keys are disabled, and no fallback API key is available.")
@@ -75,14 +77,14 @@ class MultiApiKeyProvider(
             // 从当前索引开始寻找下一个有效的key
             val startIndex = config.currentKeyIndex % candidateKeys.size
             val selectedKey = candidateKeys[startIndex]
-            
-            AppLogger.d("ApiKeyProvider", "Config ${config.name}: Using key ${startIndex + 1}/${candidateKeys.size} - '${selectedKey.name}' (sk-...${selectedKey.key.takeLast(4)})")
+
+            AppLogger.d("ApiKeyProvider", "Config ${config.name}: Using key ${startIndex + 1}/${candidateKeys.size} - '${selectedKey.name}' (sk-...${selectedKey.key.trim().takeLast(4)})")
 
             // 更新并保存下一个索引
             val nextIndex = (startIndex + 1) % candidateKeys.size
             modelConfigManager.updateConfigKeyIndex(configId, nextIndex)
 
-            selectedKey.key
+            selectedKey.key.trim()
         }
     }
 }

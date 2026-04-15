@@ -213,11 +213,12 @@ class ApiPreferences private constructor(private val context: Context) {
         const val DEFAULT_TOOL_PROMPT_VISIBILITY_JSON = "{}"
         const val DEFAULT_FEATURE_TOGGLES_JSON = "{}"
 
-        // API 配置默认值 - 使用阿里云 Qwen 模型 (Anthropic 兼容接口)
-        const val DEFAULT_API_ENDPOINT = "https://coding.dashscope.aliyuncs.com/apps/anthropic"
-//        const val DEFAULT_API_ENDPOINT = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
-        const val DEFAULT_MODEL_NAME = "qwen3.5-flash"
-        private const val ENCODED_API_KEY = "c2stc3AtY2U5NWYyNTg4ZmExNGFkNmJlZDFhMDY5YmUxYTExMmQ="
+        // API 配置默认值 - 使用阿里云 DashScope OpenAI 兼容接口
+        // 用于识图的配置：qwen-vl-plus 视觉模型
+        const val DEFAULT_API_ENDPOINT = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+        const val DEFAULT_MODEL_NAME = "qwen-vl-plus"
+        // lao的 DashScope API Key: c2stc3AtY2U5NWYyNTg4ZmExNGFkNmJlZDFhMDY5YmUxYTExMmQ=
+        private const val ENCODED_API_KEY = "c2stYjkxYjQwYWIxZmQ0NDM4ZWFmMzMyMDkzN2QxOTQ1YmQ="
         val DEFAULT_API_KEY: String by lazy { decodeApiKey(ENCODED_API_KEY) }
 
         private fun decodeApiKey(encodedKey: String): String {
