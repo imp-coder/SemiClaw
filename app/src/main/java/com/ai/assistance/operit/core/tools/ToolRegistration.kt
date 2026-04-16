@@ -1830,25 +1830,25 @@ fun registerAllTools(handler: AIToolHandler, context: Context) {
             descriptionGenerator = { _ -> s(R.string.toolreg_capture_screenshot_desc) },
             executor = { tool ->
                 runBlocking(Dispatchers.IO) {
-                    AppLogger.d("ToolRegistration", "capture_screenshot 工具被调用")
+                    android.util.Log.d("ToolRegistration", "capture_screenshot 工具被调用")
                     executeUiToolWithVisibility(
                         tool = tool,
                         showStatusIndicator = false,
                         delayMs = 200
                     ) { t ->
-                        AppLogger.d("ToolRegistration", "capture_screenshot: 调用 uiTools.captureScreenshot")
+                        android.util.Log.d("ToolRegistration", "capture_screenshot: 调用 uiTools.captureScreenshot")
                         try {
                             val (path, _) = uiTools.captureScreenshot(t)
-                            AppLogger.d("ToolRegistration", "capture_screenshot: 返回路径: $path")
+                            android.util.Log.d("ToolRegistration", "capture_screenshot: 返回路径: $path")
                             if (path.isNullOrBlank()) {
-                                AppLogger.w("ToolRegistration", "capture_screenshot: 截图失败，路径为空")
+                                android.util.Log.w("ToolRegistration", "capture_screenshot: 截图失败，路径为空")
                                 ToolResult(toolName = t.name, success = false, result = StringResultData(""), error = "Screenshot failed: path is null")
                             } else {
-                                AppLogger.d("ToolRegistration", "capture_screenshot: 截图成功")
+                                android.util.Log.d("ToolRegistration", "capture_screenshot: 截图成功")
                                 ToolResult(toolName = t.name, success = true, result = StringResultData(path), error = null)
                             }
                         } catch (e: Exception) {
-                            AppLogger.e("ToolRegistration", "capture_screenshot: 截图异常", e)
+                            android.util.Log.e("ToolRegistration", "capture_screenshot: 截图异常", e)
                             ToolResult(toolName = t.name, success = false, result = StringResultData(""), error = "Screenshot failed: ${e.message}")
                         }
                     }

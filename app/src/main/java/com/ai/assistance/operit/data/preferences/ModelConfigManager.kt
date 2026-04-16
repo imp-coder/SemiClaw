@@ -46,7 +46,8 @@ class ModelConfigManager(private val context: Context) {
         val CONFIG_LIST_KEY = stringPreferencesKey("config_list")
 
         // 默认值
-        const val DEFAULT_CONFIG_ID = "default"
+        const val DEFAULT_CONFIG_ID = "default"  // 视觉模型配置（用于图像识别）
+        const val GENERAL_CONFIG_ID = "general"  // 通用对话配置
         const val DEFAULT_CONFIG_NAME = "model_config_default_name"
 
         // Default API provider type - 使用 OpenAI 通用接口 (阿里云 DashScope)
@@ -69,25 +70,38 @@ class ModelConfigManager(private val context: Context) {
 
     // 删除获取当前活跃配置ID的流
 
-    // 初始化，确保至少有一个默认配置
+    // 初始化，确保至少有默认配置和通用配置
     suspend fun initializeIfNeeded() {
         // 检查配置列表，如果为空则创建默认配置
         // This is important for first-time users
         val configList = configListFlow.first()
         if (configList.isEmpty()) {
-            val defaultConfig = createFreshDefaultConfig()
-            saveConfigToDataStore(defaultConfig)
+            // 创建视觉模型配置（用于图像识别）
+            val visionConfig = createFreshDefaultConfig()
+            saveConfigToDataStore(visionConfig)
 
-            // 保存配置列表，移除活跃ID
+            // 创建通用对话配置
+            val generalConfig = createFreshGeneralConfig()
+            saveConfigToDataStore(generalConfig)
+
+            // 保存配置列表
             context.modelConfigDataStore.edit { preferences ->
-                preferences[CONFIG_LIST_KEY] = json.encodeToString(listOf(DEFAULT_CONFIG_ID))
+                preferences[CONFIG_LIST_KEY] = json.encodeToString(listOf(DEFAULT_CONFIG_ID, GENERAL_CONFIG_ID))
+            }
+        } else if (!configList.contains(GENERAL_CONFIG_ID)) {
+            // 如果配置列表中没有通用配置，添加它
+            val generalConfig = createFreshGeneralConfig()
+            saveConfigToDataStore(generalConfig)
+
+            context.modelConfigDataStore.edit { preferences ->
+                preferences[CONFIG_LIST_KEY] = json.encodeToString(configList + GENERAL_CONFIG_ID)
             }
         } else {
             AppLogger.d("CONFIG_TIMING", "配置列表不为空，跳过初始化")
         }
     }
 
-    // 从原有ApiPreferences创建默认配置
+    // 从原有ApiPreferences创建默认配置（视觉模型）
     private fun createFreshDefaultConfig(): ModelConfigData {
         return ModelConfigData(
                 id = DEFAULT_CONFIG_ID,
@@ -114,6 +128,36 @@ class ModelConfigManager(private val context: Context) {
                 customParameters = "[]",
                 // 默认启用识图功能
                 enableDirectImageProcessing = true
+        )
+    }
+
+    // 创建通用对话配置
+    private fun createFreshGeneralConfig(): ModelConfigData {
+        return ModelConfigData(
+                id = GENERAL_CONFIG_ID,
+                name = "通用对话",
+                apiKey = ApiPreferences.GENERAL_API_KEY,
+                apiEndpoint = ApiPreferences.GENERAL_API_ENDPOINT,
+                modelName = ApiPreferences.GENERAL_MODEL_NAME,
+                apiProviderType = ApiProviderType.ANTHROPIC_GENERIC,  // Anthropic通用端点格式
+                hasCustomParameters = false,
+                maxTokensEnabled = false,
+                temperatureEnabled = false,
+                topPEnabled = false,
+                topKEnabled = false,
+                presencePenaltyEnabled = false,
+                frequencyPenaltyEnabled = false,
+                repetitionPenaltyEnabled = false,
+                maxTokens = StandardModelParameters.DEFAULT_MAX_TOKENS,
+                temperature = StandardModelParameters.DEFAULT_TEMPERATURE,
+                topP = StandardModelParameters.DEFAULT_TOP_P,
+                topK = StandardModelParameters.DEFAULT_TOP_K,
+                presencePenalty = StandardModelParameters.DEFAULT_PRESENCE_PENALTY,
+                frequencyPenalty = StandardModelParameters.DEFAULT_FREQUENCY_PENALTY,
+                repetitionPenalty = StandardModelParameters.DEFAULT_REPETITION_PENALTY,
+                customParameters = "[]",
+                // 通用对话不需要识图功能
+                enableDirectImageProcessing = false
         )
     }
 

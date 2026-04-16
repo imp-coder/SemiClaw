@@ -98,7 +98,13 @@ class FunctionalConfigManager(private val context: Context) {
 
         // 只在映射真正为空时才创建默认映射，避免覆盖用户已保存的modelIndex
         if (mapping.isEmpty()) {
-            val defaultMapping = FunctionType.values().associateWith { FunctionConfigMapping(DEFAULT_CONFIG_ID, 0) }
+            // 创建默认映射：CHAT 和 UI_CONTROLLER 使用通用配置，IMAGE_RECOGNITION 使用视觉配置
+            val defaultMapping = FunctionType.values().associateWith {
+                when (it) {
+                    FunctionType.IMAGE_RECOGNITION -> FunctionConfigMapping(ModelConfigManager.DEFAULT_CONFIG_ID, 0)
+                    else -> FunctionConfigMapping(ModelConfigManager.GENERAL_CONFIG_ID, 0)
+                }
+            }
             saveFunctionConfigMappingWithIndex(defaultMapping)
         }
 

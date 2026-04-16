@@ -114,10 +114,11 @@
         },
         {
             "name": "set_wallpaper",
-            "description": { "zh": "设置设备壁纸。支持从本地文件路径或URL设置壁纸。需要用户授权。", "en": "Set device wallpaper. Supports local file path or URL. Requires user authorization." },
+            "description": { "zh": "设置设备壁纸。支持从本地文件路径或URL设置壁纸。可选使用 qwen-image-2.0 AI 编辑图片后再设置壁纸（例如：去掉图中某个人物、添加文字等）。需要用户授权。", "en": "Set device wallpaper. Supports local file path or URL. Optionally use qwen-image-2.0 AI to edit the image before setting (e.g., remove a person, add text). Requires user authorization." },
             "parameters": [
                 { "name": "image_path", "description": { "zh": "本地图片文件路径", "en": "Local image file path" }, "type": "string", "required": false },
                 { "name": "image_url", "description": { "zh": "图片URL地址", "en": "Image URL address" }, "type": "string", "required": false },
+                { "name": "edit_prompt", "description": { "zh": "可选：AI 图片编辑提示词。如果提供，会先使用 qwen-image-2.0 模型编辑图片（例如：\"去掉图中右边的人\"、\"在左上角添加标题文字\"），然后再设置壁纸", "en": "Optional: AI image edit prompt. If provided, the image will be edited by qwen-image-2.0 model (e.g., \"remove the person on the right\", \"add title text in the top-left corner\") before setting as wallpaper" }, "type": "string", "required": false },
                 { "name": "which", "description": { "zh": "壁纸类型：system（系统壁纸）、lock（锁屏壁纸）、both（两者）。默认system", "en": "Wallpaper type: system, lock, or both. Default: system" }, "type": "string", "required": false }
             ]
         }
@@ -197,9 +198,13 @@ const SystemTools = (function () {
         if (params.image_path) options.image_path = params.image_path;
         if (params.image_url) options.image_url = params.image_url;
         if (params.which) options.which = params.which;
+        if (params.edit_prompt) options.edit_prompt = params.edit_prompt;
 
         const result = await Tools.System.setWallpaper(options);
-        return { success: result.success, message: result.success ? '壁纸设置成功' : '壁纸设置失败', data: result };
+        const message = params.edit_prompt
+            ? (result.success ? '图片编辑并设置壁纸成功' : '图片编辑或壁纸设置失败')
+            : (result.success ? '壁纸设置成功' : '壁纸设置失败');
+        return { success: result.success, message: message, data: result };
     }
     async function wrapToolExecution(func, params) {
         try {

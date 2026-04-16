@@ -240,34 +240,65 @@ class FeishuAutoStartService : Service() {
                     userMessage.contains("背景")
 
             if (isWallpaperCommand) {
-                feishuService.sendMessage(feishuChatId, "正在设置壁纸...")
+                // 提取编辑提示词（如果用户要求编辑图片）
+                val editPrompt = extractEditPrompt(userMessage)
 
-                try {
-                    val feishuClient = FeishuClient(applicationContext)
-                    val config = feishuPreferences.getFeishuConfig()
+                if (editPrompt != null) {
+                    feishuService.sendMessage(feishuChatId, "正在使用 AI 编辑图片并设置壁纸...")
 
-                    val result = com.ai.assistance.operit.util.WallpaperUtil.setWallpaperFromFeishu(
-                        applicationContext,
-                        feishuClient,
-                        config,
-                        imageKey,
-                        message.messageId
-                    )
+                    try {
+                        val feishuClient = FeishuClient(applicationContext)
+                        val config = feishuPreferences.getFeishuConfig()
 
-                    if (result.isSuccess) {
-                        feishuService.sendMessage(feishuChatId, "壁纸设置成功！")
-                    } else {
-                        val error = result.exceptionOrNull()?.message ?: "未知错误"
-                        feishuService.sendMessage(feishuChatId, "壁纸设置失败: $error")
+                        val result = com.ai.assistance.operit.util.WallpaperUtil.editAndSetWallpaperFromFeishu(
+                            applicationContext,
+                            feishuClient,
+                            config,
+                            imageKey,
+                            message.messageId,
+                            editPrompt
+                        )
+
+                        if (result.isSuccess) {
+                            feishuService.sendMessage(feishuChatId, "✅ 图片编辑成功，壁纸已设置！\n📝 编辑提示词: $editPrompt")
+                        } else {
+                            val error = result.exceptionOrNull()?.message ?: "未知错误"
+                            feishuService.sendMessage(feishuChatId, "❌ 图片编辑或壁纸设置失败: $error")
+                        }
+                    } catch (e: Exception) {
+                        AppLogger.e(TAG, "编辑并设置壁纸异常", e)
+                        feishuService.sendMessage(feishuChatId, "❌ 图片编辑失败: ${e.message}")
                     }
-                } catch (e: Exception) {
-                    AppLogger.e(TAG, "设置壁纸异常", e)
-                    feishuService.sendMessage(feishuChatId, "壁纸设置失败: ${e.message}")
+                } else {
+                    feishuService.sendMessage(feishuChatId, "正在设置壁纸...")
+
+                    try {
+                        val feishuClient = FeishuClient(applicationContext)
+                        val config = feishuPreferences.getFeishuConfig()
+
+                        val result = com.ai.assistance.operit.util.WallpaperUtil.setWallpaperFromFeishu(
+                            applicationContext,
+                            feishuClient,
+                            config,
+                            imageKey,
+                            message.messageId
+                        )
+
+                        if (result.isSuccess) {
+                            feishuService.sendMessage(feishuChatId, "壁纸设置成功！")
+                        } else {
+                            val error = result.exceptionOrNull()?.message ?: "未知错误"
+                            feishuService.sendMessage(feishuChatId, "壁纸设置失败: $error")
+                        }
+                    } catch (e: Exception) {
+                        AppLogger.e(TAG, "设置壁纸异常", e)
+                        feishuService.sendMessage(feishuChatId, "壁纸设置失败: ${e.message}")
+                    }
                 }
 
                 return null
             } else {
-                feishuService.sendMessage(feishuChatId, "收到图片。如需设置为壁纸，请发送图片时附带说明\"设置壁纸\"。")
+                feishuService.sendMessage(feishuChatId, "收到图片。如需设置为壁纸，请发送图片时附带说明\"设置壁纸\"。如需编辑图片后设置，请说明编辑内容，例如\"把图中汽车p掉然后设置壁纸\"。")
                 return null
             }
         }
@@ -559,5 +590,75 @@ class FeishuAutoStartService : Service() {
         result = result.replace(Regex("\n{3,}"), "\n\n")
 
         return result.trim()
+    }
+
+    /**
+     * 从用户消息中提取图片编辑提示词
+     * 支持多种表达方式，例如：
+     * - "把图片中汽车p掉" -> "去掉图中的汽车"
+     * - "p掉图中的人" -> "去掉图中的人"
+     * - "去掉右边的树" -> "去掉右边的树"
+     * - "把汽车去掉" -> "去掉汽车"
+     */
+    private fun extractEditPrompt(userMessage: String): String? {
+        val message = userMessage.lowercase()
+
+        // 检查是否包含编辑关键词
+        val hasEditKeyword = message.contains("p掉") ||
+                message.contains("去掉") ||
+                message.contains("删除") ||
+                message.contains("移除") ||
+                message.contains("消除") ||
+                message.contains("抹掉") ||
+                message.contains("去掉图中") ||
+                message.contains("把") && message.contains("去掉") ||
+                message.contains("把") && message.contains("p掉")
+
+        if (!hasEditKeyword) return null
+
+        // 提取编辑对象
+        val patterns = listOf(
+            // "把图片中汽车p掉" -> 提取 "汽车"
+            Regex("把图片中(.+?)p掉"),
+            Regex("把图中(.+?)p掉"),
+            Regex("把图片里的(.+?)p掉"),
+            // "p掉图中的汽车" -> 提取 "汽车"
+            Regex("p掉图中的(.+)"),
+            Regex("p掉图片中的(.+)"),
+            Regex("p掉图片里的(.+)"),
+            // "去掉图中的汽车" -> 提取 "汽车"
+            Regex("去掉图中的(.+)"),
+            Regex("去掉图片中的(.+)"),
+            Regex("去掉图片里的(.+)"),
+            // "把汽车去掉" -> 提取 "汽车"
+            Regex("把(.+?)去掉"),
+            Regex("把(.+?)删除"),
+            Regex("把(.+?)移除"),
+            // "去掉汽车" -> 提取 "汽车"
+            Regex("去掉(.+)"),
+            Regex("删除(.+)"),
+            Regex("移除(.+)"),
+            Regex("消除(.+)"),
+            Regex("抹掉(.+)")
+        )
+
+        for (pattern in patterns) {
+            val match = pattern.find(userMessage)
+            if (match != null && match.groupValues.size > 1) {
+                val target = match.groupValues[1].trim()
+                if (target.isNotEmpty()) {
+                    // 标准化编辑提示词
+                    return "去掉图中的$target"
+                }
+            }
+        }
+
+        // 如果没有匹配到具体对象，但用户提到了编辑，返回通用提示
+        if (hasEditKeyword && message.contains("壁纸")) {
+            // 尝试从上下文推断
+            return "按照用户要求编辑图片"
+        }
+
+        return null
     }
 }

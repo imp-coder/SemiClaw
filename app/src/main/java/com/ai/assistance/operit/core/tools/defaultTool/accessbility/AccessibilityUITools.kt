@@ -795,27 +795,33 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
 
     override suspend fun captureScreenshotToFile(tool: AITool): Pair<String?, Pair<Int, Int>?> {
         return try {
-            AppLogger.d(TAG, "captureScreenshotToFile: 开始截图 (Accessibility模式)")
+            android.util.Log.d(TAG, "captureScreenshotToFile: 开始截图 (Accessibility模式)")
 
             val screenshotDir = OperitPaths.cleanOnExitDir()
+            // 确保目录存在
+            if (!screenshotDir.exists()) {
+                screenshotDir.mkdirs()
+                android.util.Log.d(TAG, "captureScreenshotToFile: 创建截图目录: ${screenshotDir.absolutePath}")
+            }
+
             val shortName = System.currentTimeMillis().toString().takeLast(4)
             val file = File(screenshotDir, "$shortName.png")
-            AppLogger.d(TAG, "captureScreenshotToFile: 目标文件: ${file.absolutePath}")
+            android.util.Log.d(TAG, "captureScreenshotToFile: 目标文件: ${file.absolutePath}")
 
             // 1) 首先尝试使用本地集成的无障碍服务截图
             val localService = OperitAccessibilityService.instance
             if (localService != null && OperitAccessibilityService.isServiceConnected) {
-                AppLogger.d(TAG, "captureScreenshotToFile: 尝试本地无障碍服务截图...")
+                android.util.Log.d(TAG, "captureScreenshotToFile: 尝试本地无障碍服务截图...")
                 var localSuccess = false
                 try {
                     localSuccess = localService.takeScreenshot(file.absolutePath, "png")
-                    AppLogger.d(TAG, "captureScreenshotToFile: 本地服务截图返回: $localSuccess, 文件存在: ${file.exists()}, 文件大小: ${if (file.exists()) file.length() else 0}")
+                    android.util.Log.d(TAG, "captureScreenshotToFile: 本地服务截图返回: $localSuccess, 文件存在: ${file.exists()}, 文件大小: ${if (file.exists()) file.length() else 0}")
                 } catch (e: Exception) {
-                    AppLogger.w(TAG, "captureScreenshotToFile: 本地服务截图异常: ${e.message}")
+                    android.util.Log.w(TAG, "captureScreenshotToFile: 本地服务截图异常: ${e.message}")
                 }
 
                 if (localSuccess && file.exists() && file.length() > 0) {
-                    AppLogger.d(TAG, "captureScreenshotToFile: 本地无障碍服务截图成功")
+                    android.util.Log.d(TAG, "captureScreenshotToFile: 本地无障碍服务截图成功")
                     val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                     BitmapFactory.decodeFile(file.absolutePath, options)
                     val dimensions = if (options.outWidth > 0 && options.outHeight > 0) {
@@ -827,13 +833,13 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
                 }
 
                 // 本地无障碍服务截图失败，重试几次
-                AppLogger.d(TAG, "captureScreenshotToFile: 本地服务截图失败，尝试重试...")
+                android.util.Log.d(TAG, "captureScreenshotToFile: 本地服务截图失败，尝试重试...")
                 for (retry in 1..2) {
                     delay(300)
                     try {
                         localSuccess = localService.takeScreenshot(file.absolutePath, "png")
                         if (localSuccess && file.exists() && file.length() > 0) {
-                            AppLogger.d(TAG, "captureScreenshotToFile: 重试 #$retry 成功")
+                            android.util.Log.d(TAG, "captureScreenshotToFile: 重试 #$retry 成功")
                             val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                             BitmapFactory.decodeFile(file.absolutePath, options)
                             val dimensions = if (options.outWidth > 0 && options.outHeight > 0) {
@@ -844,27 +850,27 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
                             return Pair(file.absolutePath, dimensions)
                         }
                     } catch (e: Exception) {
-                        AppLogger.w(TAG, "captureScreenshotToFile: 重试 #$retry 异常: ${e.message}")
+                        android.util.Log.w(TAG, "captureScreenshotToFile: 重试 #$retry 异常: ${e.message}")
                     }
                 }
 
                 // 无障碍服务可用但截图失败，回退到父类方法（可能使用 MediaProjection）
-                AppLogger.w(TAG, "captureScreenshotToFile: 无障碍服务截图失败，回退到 MediaProjection")
+                android.util.Log.w(TAG, "captureScreenshotToFile: 无障碍服务截图失败，回退到 MediaProjection")
                 return super.captureScreenshotToFile(tool)
             }
 
             // 2) 尝试通过外部AIDL服务截图
-            AppLogger.d(TAG, "captureScreenshotToFile: 尝试外部AIDL服务截图...")
+            android.util.Log.d(TAG, "captureScreenshotToFile: 尝试外部AIDL服务截图...")
             var providerSuccess = false
             try {
                 providerSuccess = UIHierarchyManager.takeScreenshot(context, file.absolutePath, "png")
-                AppLogger.d(TAG, "captureScreenshotToFile: AIDL服务截图返回: $providerSuccess, 文件存在: ${file.exists()}, 文件大小: ${if (file.exists()) file.length() else 0}")
+                android.util.Log.d(TAG, "captureScreenshotToFile: AIDL服务截图返回: $providerSuccess, 文件存在: ${file.exists()}, 文件大小: ${if (file.exists()) file.length() else 0}")
             } catch (e: Exception) {
-                AppLogger.w(TAG, "captureScreenshotToFile: AIDL服务截图异常: ${e.message}")
+                android.util.Log.w(TAG, "captureScreenshotToFile: AIDL服务截图异常: ${e.message}")
             }
 
             if (providerSuccess && file.exists() && file.length() > 0) {
-                AppLogger.d(TAG, "captureScreenshotToFile: AIDL服务截图成功")
+                android.util.Log.d(TAG, "captureScreenshotToFile: AIDL服务截图成功")
                 val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 BitmapFactory.decodeFile(file.absolutePath, options)
                 val dimensions = if (options.outWidth > 0 && options.outHeight > 0) {
@@ -876,10 +882,10 @@ open class AccessibilityUITools(context: Context) : StandardUITools(context) {
             }
 
             // 3) 无障碍服务不可用，回退到父类方法
-            AppLogger.d(TAG, "captureScreenshotToFile: 无障碍服务不可用，使用 MediaProjection")
+            android.util.Log.d(TAG, "captureScreenshotToFile: 无障碍服务不可用，使用 MediaProjection")
             return super.captureScreenshotToFile(tool)
         } catch (e: Exception) {
-            AppLogger.e(TAG, "captureScreenshot failed", e)
+            android.util.Log.e(TAG, "captureScreenshot failed: ${e.message}")
             Pair(null, null)
         }
     }

@@ -905,10 +905,12 @@ open class StandardSystemOperationTools(private val context: Context) {
     /**
      * 设置壁纸
      * 支持从本地文件路径或URL设置壁纸
+     * 支持可选的图片编辑功能（使用 qwen-image-2.0 AI 编辑）
      */
     open suspend fun setWallpaper(tool: AITool): ToolResult {
         val imagePath = tool.parameters.find { it.name == "image_path" }?.value ?: ""
         val imageUrl = tool.parameters.find { it.name == "image_url" }?.value ?: ""
+        val editPrompt = tool.parameters.find { it.name == "edit_prompt" }?.value ?: ""
         val which = tool.parameters.find { it.name == "which" }?.value ?: "system"
 
         if (imagePath.isBlank() && imageUrl.isBlank()) {
@@ -928,68 +930,120 @@ open class StandardSystemOperationTools(private val context: Context) {
                 else -> android.app.WallpaperManager.FLAG_SYSTEM
             }
 
-            when {
-                imagePath.isNotBlank() -> {
-                    // 从本地文件设置壁纸
-                    val file = File(imagePath)
-                    if (!file.exists()) {
+            // 如果有编辑提示词，先编辑图片再设置壁纸
+            if (editPrompt.isNotBlank()) {
+                AppLogger.d(TAG, "壁纸设置包含编辑提示词: $editPrompt")
+
+                val result = when {
+                    imagePath.isNotBlank() -> {
+                        val file = File(imagePath)
+                        if (!file.exists()) {
+                            return ToolResult(
+                                toolName = tool.name,
+                                success = false,
+                                result = StringResultData(""),
+                                error = "Image file does not exist: $imagePath"
+                            )
+                        }
+                        com.ai.assistance.operit.util.WallpaperUtil.editAndSetWallpaperFromFile(
+                            context, file, editPrompt, whichFlag
+                        )
+                    }
+                    imageUrl.isNotBlank() -> {
+                        com.ai.assistance.operit.util.WallpaperUtil.editAndSetWallpaperFromUrl(
+                            context, imageUrl, editPrompt, whichFlag
+                        )
+                    }
+                    else -> {
                         return ToolResult(
                             toolName = tool.name,
                             success = false,
                             result = StringResultData(""),
-                            error = "Image file does not exist: $imagePath"
-                        )
-                    }
-
-                    val result = com.ai.assistance.operit.util.WallpaperUtil.setWallpaperFromFile(
-                        context, file, whichFlag
-                    )
-
-                    if (result.isSuccess) {
-                        ToolResult(
-                            toolName = tool.name,
-                            success = true,
-                            result = StringResultData("壁纸设置成功"),
-                            error = ""
-                        )
-                    } else {
-                        ToolResult(
-                            toolName = tool.name,
-                            success = false,
-                            result = StringResultData(""),
-                            error = result.exceptionOrNull()?.message ?: "壁纸设置失败"
+                            error = "No image source provided"
                         )
                     }
                 }
-                imageUrl.isNotBlank() -> {
-                    // 从URL设置壁纸
-                    val result = com.ai.assistance.operit.util.WallpaperUtil.setWallpaperFromUrl(
-                        context, imageUrl, whichFlag
-                    )
 
-                    if (result.isSuccess) {
-                        ToolResult(
-                            toolName = tool.name,
-                            success = true,
-                            result = StringResultData("壁纸设置成功"),
-                            error = ""
-                        )
-                    } else {
-                        ToolResult(
-                            toolName = tool.name,
-                            success = false,
-                            result = StringResultData(""),
-                            error = result.exceptionOrNull()?.message ?: "壁纸设置失败"
-                        )
-                    }
-                }
-                else -> {
+                if (result.isSuccess) {
+                    ToolResult(
+                        toolName = tool.name,
+                        success = true,
+                        result = StringResultData("壁纸编辑并设置成功"),
+                        error = ""
+                    )
+                } else {
                     ToolResult(
                         toolName = tool.name,
                         success = false,
                         result = StringResultData(""),
-                        error = "No image source provided"
+                        error = result.exceptionOrNull()?.message ?: "壁纸编辑设置失败"
                     )
+                }
+            } else {
+                // 无编辑提示词，直接设置壁纸
+                when {
+                    imagePath.isNotBlank() -> {
+                        // 从本地文件设置壁纸
+                        val file = File(imagePath)
+                        if (!file.exists()) {
+                            return ToolResult(
+                                toolName = tool.name,
+                                success = false,
+                                result = StringResultData(""),
+                                error = "Image file does not exist: $imagePath"
+                            )
+                        }
+
+                        val result = com.ai.assistance.operit.util.WallpaperUtil.setWallpaperFromFile(
+                            context, file, whichFlag
+                        )
+
+                        if (result.isSuccess) {
+                            ToolResult(
+                                toolName = tool.name,
+                                success = true,
+                                result = StringResultData("壁纸设置成功"),
+                                error = ""
+                            )
+                        } else {
+                            ToolResult(
+                                toolName = tool.name,
+                                success = false,
+                                result = StringResultData(""),
+                                error = result.exceptionOrNull()?.message ?: "壁纸设置失败"
+                            )
+                        }
+                    }
+                    imageUrl.isNotBlank() -> {
+                        // 从URL设置壁纸
+                        val result = com.ai.assistance.operit.util.WallpaperUtil.setWallpaperFromUrl(
+                            context, imageUrl, whichFlag
+                        )
+
+                        if (result.isSuccess) {
+                            ToolResult(
+                                toolName = tool.name,
+                                success = true,
+                                result = StringResultData("壁纸设置成功"),
+                                error = ""
+                            )
+                        } else {
+                            ToolResult(
+                                toolName = tool.name,
+                                success = false,
+                                result = StringResultData(""),
+                                error = result.exceptionOrNull()?.message ?: "壁纸设置失败"
+                            )
+                        }
+                    }
+                    else -> {
+                        ToolResult(
+                            toolName = tool.name,
+                            success = false,
+                            result = StringResultData(""),
+                            error = "No image source provided"
+                        )
+                    }
                 }
             }
         } catch (e: Exception) {

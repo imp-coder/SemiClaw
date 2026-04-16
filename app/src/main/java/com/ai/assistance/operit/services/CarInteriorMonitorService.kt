@@ -12,7 +12,8 @@ class CarInteriorMonitorService private constructor(private val context: Context
     companion object {
         private const val TAG = "CarInteriorMonitor"
         private const val CAPTURE_INTERVAL_MS = 0L
-        private const val MONITORING_DURATION_MS = 1 * 60 * 1000L
+        // 监控持续时间：设为0表示只检测一次
+        private const val MONITORING_DURATION_MS = 0L
         // AI识图超时时间，超时后跳过本次检测继续下一次
         private const val AI_TIMEOUT_MS = 60 * 1000L
 
@@ -79,7 +80,7 @@ class CarInteriorMonitorService private constructor(private val context: Context
 
         isMonitoring = true
         currentChatId = chatId
-        feishuService.sendMessage(chatId, "🚗 车内检测已启动，持续1分钟，发现异常会自动告警")
+        feishuService.sendMessage(chatId, "🚗 车内检测已启动，发现异常会自动告警")
 
         monitorJob = serviceScope.launch {
             try {
@@ -104,10 +105,8 @@ class CarInteriorMonitorService private constructor(private val context: Context
         val MAX_CONSECUTIVE_FAILURES = 3
         val findings = mutableListOf<String>()
 
-        while (currentCoroutineContext().isActive &&
-               isMonitoring &&
-               cameraService.isReady() &&
-               System.currentTimeMillis() - startTime < MONITORING_DURATION_MS) {
+        // 使用 do-while 确保至少执行一次检测
+        do {
 
             // 检查是否被其他任务停止
             if (!isMonitoring || !cameraService.isReady()) {
@@ -180,7 +179,14 @@ class CarInteriorMonitorService private constructor(private val context: Context
                 imagePath?.let { try { java.io.File(it).delete() } catch (_: Exception) {} }
             }
             delay(CAPTURE_INTERVAL_MS)
-        }
+
+            // 如果 MONITORING_DURATION_MS = 0，只检测一次就退出
+            if (MONITORING_DURATION_MS == 0L) break
+
+        } while (currentCoroutineContext().isActive &&
+                 isMonitoring &&
+                 cameraService.isReady() &&
+                 System.currentTimeMillis() - startTime < MONITORING_DURATION_MS)
 
         if (currentCoroutineContext().isActive) {
             if (findings.isEmpty()) {

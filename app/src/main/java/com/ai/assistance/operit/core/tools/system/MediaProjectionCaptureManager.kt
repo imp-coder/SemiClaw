@@ -50,8 +50,8 @@ class MediaProjectionCaptureManager(private val context: Context, private val me
             val height = metrics.heightPixels
             val densityDpi = metrics.densityDpi
 
-            // Using RGBA_8888
-            val reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
+            // Using RGBA_8888, 增加 maxImages 以减少获取不完整图像的可能性
+            val reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 5)
             imageReader = reader
 
             val flags = DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR
@@ -103,26 +103,90 @@ class MediaProjectionCaptureManager(private val context: Context, private val me
 
     /**
      * Capture the latest frame to a file.
+     * 改进：多次尝试获取图像，确保数据完整
      */
     fun captureToFile(file: File): Boolean {
         val reader = imageReader ?: return false
         var image: Image? = null
+        var retryCount = 0
+        val maxRetries = 5
+
         return try {
-            // Try to get the latest image
-            image = reader.acquireLatestImage()
+            // 多次尝试获取图像，确保数据完整
+            while (image == null && retryCount < maxRetries) {
+                image = reader.acquireLatestImage()
+                if (image == null) {
+                    Thread.sleep(100)
+                    retryCount++
+                    AppLogger.d(TAG, "captureToFile: 等待图像... ($retryCount/$maxRetries)")
+                }
+            }
+
             if (image == null) {
-                 // Sometimes it takes a moment for the first frame to arrive
-                 return false
+                AppLogger.w(TAG, "captureToFile: 无法获取图像 (尝试 $maxRetries 次)")
+                return false
             }
 
             val width = image.width
             val height = image.height
-            
+
+            // 验证图像完整性
             val plane = image.planes[0]
             val buffer = plane.buffer
             val pixelStride = plane.pixelStride
             val rowStride = plane.rowStride
             val rowPadding = rowStride - pixelStride * width
+
+            // 计算预期的 buffer 大小
+            val expectedBufferSize = rowStride * height
+            val actualBufferSize = buffer.remaining()
+
+            if (actualBufferSize < expectedBufferSize) {
+                AppLogger.w(TAG, "captureToFile: Buffer 不完整, expected=$expectedBufferSize, actual=$actualBufferSize")
+                // 关闭当前图像，再次尝试
+                image.close()
+                image = null
+
+                // 等待并再次尝试获取完整的图像
+                Thread.sleep(200)
+                image = reader.acquireLatestImage()
+
+                if (image == null) {
+                    return false
+                }
+
+                // 重新获取 buffer
+                val newPlane = image.planes[0]
+                val newBuffer = newPlane.buffer
+                if (newBuffer.remaining() < expectedBufferSize) {
+                    AppLogger.e(TAG, "captureToFile: 第二次尝试仍然不完整")
+                    return false
+                }
+
+                // 使用新的参数
+                val newPixelStride = newPlane.pixelStride
+                val newRowStride = newPlane.rowStride
+                val newRowPadding = newRowStride - newPixelStride * width
+
+                val bitmap = Bitmap.createBitmap(
+                    width + newRowPadding / newPixelStride,
+                    height,
+                    Bitmap.Config.ARGB_8888
+                )
+                bitmap.copyPixelsFromBuffer(newBuffer)
+
+                val cropped = Bitmap.createBitmap(bitmap, 0, 0, width, height)
+
+                FileOutputStream(file).use { out ->
+                    cropped.compress(Bitmap.CompressFormat.PNG, 100, out)
+                    out.flush()
+                }
+                bitmap.recycle()
+                if (cropped != bitmap) cropped.recycle()
+
+                AppLogger.d(TAG, "captureToFile: 第二次尝试成功, 尺寸: ${width}x${height}")
+                return true
+            }
 
             val bitmap = Bitmap.createBitmap(
                 width + rowPadding / pixelStride,
@@ -132,13 +196,15 @@ class MediaProjectionCaptureManager(private val context: Context, private val me
             bitmap.copyPixelsFromBuffer(buffer)
 
             val cropped = Bitmap.createBitmap(bitmap, 0, 0, width, height)
-            
+
             FileOutputStream(file).use { out ->
                 cropped.compress(Bitmap.CompressFormat.PNG, 100, out)
+                out.flush()
             }
             bitmap.recycle()
             if (cropped != bitmap) cropped.recycle()
-            
+
+            AppLogger.d(TAG, "captureToFile: 截图成功, 尺寸: ${width}x${height}, 文件大小: ${file.length()}")
             true
         } catch (e: Exception) {
             AppLogger.e(TAG, "Error capturing frame from MediaProjection", e)
