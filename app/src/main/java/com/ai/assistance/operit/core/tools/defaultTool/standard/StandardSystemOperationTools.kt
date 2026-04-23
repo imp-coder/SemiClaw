@@ -17,6 +17,7 @@ import com.ai.assistance.operit.core.tools.AppOperationData
 import com.ai.assistance.operit.core.tools.LocationData
 import com.ai.assistance.operit.core.tools.NotificationData
 import com.ai.assistance.operit.core.tools.StringResultData
+import com.ai.assistance.operit.core.tools.ToolProgressNotifier
 import com.ai.assistance.operit.core.tools.SystemSettingData
 import com.ai.assistance.operit.core.tools.system.AndroidShellExecutor
 import com.ai.assistance.operit.data.model.AITool
@@ -104,7 +105,12 @@ open class StandardSystemOperationTools(private val context: Context) {
     open suspend fun sendNotification(tool: AITool): ToolResult {
         val title = tool.parameters.find { it.name == "title" }?.value?.takeIf { it.isNotBlank() } ?: "Notification"
         val message = tool.parameters.find { it.name == "message" }?.value
+
+        ToolProgressNotifier.notifyStart(context, "send_notification", "🔔 正在调用发送通知工具...")
+        ToolProgressNotifier.notifyInProgress(context, "send_notification", "📋 准备发送通知: $title")
+
         if (message.isNullOrBlank()) {
+            ToolProgressNotifier.notifyError(context, "send_notification", "❌ 必须提供通知内容")
             return ToolResult(
                 toolName = tool.name,
                 success = false,
@@ -159,10 +165,13 @@ open class StandardSystemOperationTools(private val context: Context) {
             val notification = builder.build()
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             val id = (System.currentTimeMillis() and 0x7FFFFFFF).toInt()
+            ToolProgressNotifier.notifyInProgress(context, "send_notification", "📲 正在发送通知...")
             manager.notify(id, notification)
+            ToolProgressNotifier.notifySuccess(context, "send_notification", "✅ 通知已发送: $title")
 
             ToolResult(toolName = tool.name, success = true, result = StringResultData("OK"))
         } catch (e: SecurityException) {
+            ToolProgressNotifier.notifyError(context, "send_notification", "❌ 发送通知失败(缺少权限)")
             ToolResult(
                 toolName = tool.name,
                 success = false,
@@ -170,6 +179,7 @@ open class StandardSystemOperationTools(private val context: Context) {
                 error = "Failed to send notification (missing permission): ${e.message}"
             )
         } catch (e: Exception) {
+            ToolProgressNotifier.notifyError(context, "send_notification", "❌ 发送通知失败: ${e.message}")
             ToolResult(
                 toolName = tool.name,
                 success = false,
@@ -185,7 +195,11 @@ open class StandardSystemOperationTools(private val context: Context) {
         val value = tool.parameters.find { it.name == "value" }?.value ?: ""
         val namespace = tool.parameters.find { it.name == "namespace" }?.value ?: "system"
 
+        ToolProgressNotifier.notifyStart(context, "modify_setting", "⚙️ 正在调用修改系统设置工具...")
+        ToolProgressNotifier.notifyInProgress(context, "modify_setting", "📋 准备修改设置: $setting")
+
         if (setting.isBlank() || value.isBlank()) {
+            ToolProgressNotifier.notifyError(context, "modify_setting", "❌ 必须提供设置名和值")
             return ToolResult(
                 toolName = tool.name,
                 success = false,
@@ -206,6 +220,7 @@ open class StandardSystemOperationTools(private val context: Context) {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(context)) {
             // 自动打开系统设置页面引导用户授权
+            ToolProgressNotifier.notifyInProgress(context, "modify_setting", "🔐 正在请求系统设置修改权限...")
             try {
                 val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS).apply {
                     data = Uri.parse("package:${context.packageName}")
@@ -231,11 +246,13 @@ open class StandardSystemOperationTools(private val context: Context) {
         }
 
         return try {
+            ToolProgressNotifier.notifyInProgress(context, "modify_setting", "⏳ 正在修改设置 $setting = $value...")
             when (namespace) {
                 "system" -> Settings.System.putString(context.contentResolver, setting, value)
                 "secure" -> Settings.Secure.putString(context.contentResolver, setting, value)
                 "global" -> Settings.Global.putString(context.contentResolver, setting, value)
             }
+            ToolProgressNotifier.notifySuccess(context, "modify_setting", "✅ 设置修改成功: $setting = $value")
             val resultData = SystemSettingData(namespace = namespace, setting = setting, value = value)
             ToolResult(toolName = tool.name, success = true, result = resultData, error = "")
         } catch (e: SecurityException) {
@@ -323,7 +340,11 @@ open class StandardSystemOperationTools(private val context: Context) {
     open suspend fun installApp(tool: AITool): ToolResult {
         val apkPath = tool.parameters.find { it.name == "path" }?.value ?: ""
 
+        ToolProgressNotifier.notifyStart(context, "install_app", "📦 正在调用安装应用工具...")
+        ToolProgressNotifier.notifyInProgress(context, "install_app", "📋 准备安装应用...")
+
         if (apkPath.isBlank()) {
+            ToolProgressNotifier.notifyError(context, "install_app", "❌ 必须提供APK路径")
             return ToolResult(
                 toolName = tool.name,
                 success = false,
@@ -332,8 +353,10 @@ open class StandardSystemOperationTools(private val context: Context) {
             )
         }
 
+        ToolProgressNotifier.notifyInProgress(context, "install_app", "📁 正在检查APK文件: $apkPath")
         val file = File(apkPath)
         if (!file.exists()) {
+            ToolProgressNotifier.notifyError(context, "install_app", "❌ APK文件不存在")
             return ToolResult(
                 toolName = tool.name,
                 success = false,
@@ -361,7 +384,10 @@ open class StandardSystemOperationTools(private val context: Context) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
+            ToolProgressNotifier.notifyInProgress(context, "install_app", "📲 正在请求安装权限...")
             context.startActivity(intent)
+
+            ToolProgressNotifier.notifySuccess(context, "install_app", "✅ 安装请求已发送，请在系统界面确认安装")
 
             val resultData = AppOperationData(
                 operationType = "install_request",
@@ -372,6 +398,7 @@ open class StandardSystemOperationTools(private val context: Context) {
             ToolResult(toolName = tool.name, success = true, result = resultData, error = "")
         } catch (e: Exception) {
             AppLogger.e(TAG, "请求安装应用时出错", e)
+            ToolProgressNotifier.notifyError(context, "install_app", "❌ 安装应用出错: ${e.message}")
             ToolResult(
                 toolName = tool.name,
                 success = false,
@@ -385,7 +412,11 @@ open class StandardSystemOperationTools(private val context: Context) {
     open suspend fun uninstallApp(tool: AITool): ToolResult {
         val packageName = tool.parameters.find { it.name == "package_name" }?.value ?: ""
 
+        ToolProgressNotifier.notifyStart(context, "uninstall_app", "🗑️ 正在调用卸载应用工具...")
+        ToolProgressNotifier.notifyInProgress(context, "uninstall_app", "📋 准备卸载应用...")
+
         if (packageName.isBlank()) {
+            ToolProgressNotifier.notifyError(context, "uninstall_app", "❌ 必须提供包名")
             return ToolResult(
                 toolName = tool.name,
                 success = false,
@@ -394,9 +425,11 @@ open class StandardSystemOperationTools(private val context: Context) {
             )
         }
 
+        ToolProgressNotifier.notifyInProgress(context, "uninstall_app", "🔍 正在检查应用是否已安装...")
         try {
             context.packageManager.getPackageInfo(packageName, 0)
         } catch (e: PackageManager.NameNotFoundException) {
+            ToolProgressNotifier.notifyError(context, "uninstall_app", "❌ 应用未安装: $packageName")
             return ToolResult(
                 toolName = tool.name,
                 success = false,
@@ -411,6 +444,8 @@ open class StandardSystemOperationTools(private val context: Context) {
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
 
+            ToolProgressNotifier.notifySuccess(context, "uninstall_app", "✅ 卸载请求已发送，请在系统界面确认卸载")
+
             val resultData = AppOperationData(
                 operationType = "uninstall_request",
                 packageName = packageName,
@@ -420,6 +455,7 @@ open class StandardSystemOperationTools(private val context: Context) {
             ToolResult(toolName = tool.name, success = true, result = resultData, error = "")
         } catch (e: Exception) {
             AppLogger.e(TAG, "请求卸载应用时出错", e)
+            ToolProgressNotifier.notifyError(context, "uninstall_app", "❌ 卸载应用出错: ${e.message}")
             ToolResult(
                 toolName = tool.name,
                 success = false,
@@ -481,7 +517,11 @@ open class StandardSystemOperationTools(private val context: Context) {
         val packageName = tool.parameters.find { it.name == "package_name" }?.value ?: ""
         val activityName = tool.parameters.find { it.name == "activity" }?.value ?: ""
 
+        ToolProgressNotifier.notifyStart(context, "start_app", "🚀 正在调用启动应用工具...")
+        ToolProgressNotifier.notifyInProgress(context, "start_app", "📋 准备启动应用: $packageName")
+
         if (packageName.isBlank()) {
+            ToolProgressNotifier.notifyError(context, "start_app", "❌ 必须提供包名")
             return ToolResult(
                 toolName = tool.name,
                 success = false,
@@ -502,7 +542,9 @@ open class StandardSystemOperationTools(private val context: Context) {
 
             if (intent != null) {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                ToolProgressNotifier.notifyInProgress(context, "start_app", "📲 正在启动应用...")
                 context.startActivity(intent)
+                ToolProgressNotifier.notifySuccess(context, "start_app", "✅ 应用已启动: $packageName")
                 val details = if (activityName.isNotBlank()) "Activity: $activityName" else ""
                 val resultData = AppOperationData(
                     operationType = "start",
@@ -512,6 +554,7 @@ open class StandardSystemOperationTools(private val context: Context) {
                 )
                 ToolResult(toolName = tool.name, success = true, result = resultData, error = "")
             } else {
+                ToolProgressNotifier.notifyError(context, "start_app", "❌ 无法找到应用启动入口")
                 ToolResult(
                     toolName = tool.name,
                     success = false,
@@ -521,6 +564,7 @@ open class StandardSystemOperationTools(private val context: Context) {
             }
         } catch (e: Exception) {
             AppLogger.e(TAG, "启动应用时出错", e)
+            ToolProgressNotifier.notifyError(context, "start_app", "❌ 启动应用出错: ${e.message}")
             ToolResult(
                 toolName = tool.name,
                 success = false,
@@ -534,7 +578,11 @@ open class StandardSystemOperationTools(private val context: Context) {
     open suspend fun stopApp(tool: AITool): ToolResult {
         val packageName = tool.parameters.find { it.name == "package_name" }?.value ?: ""
 
+        ToolProgressNotifier.notifyStart(context, "stop_app", "⏹️ 正在调用停止应用工具...")
+        ToolProgressNotifier.notifyInProgress(context, "stop_app", "📋 准备停止应用: $packageName")
+
         if (packageName.isBlank()) {
+            ToolProgressNotifier.notifyError(context, "stop_app", "❌ 必须提供包名")
             return ToolResult(
                 toolName = tool.name,
                 success = false,
@@ -545,7 +593,9 @@ open class StandardSystemOperationTools(private val context: Context) {
 
         return try {
             val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            ToolProgressNotifier.notifyInProgress(context, "stop_app", "⏳ 正在停止应用进程...")
             activityManager.killBackgroundProcesses(packageName)
+            ToolProgressNotifier.notifySuccess(context, "stop_app", "✅ 应用已停止: $packageName")
             val resultData = AppOperationData(
                 operationType = "stop",
                 packageName = packageName,
@@ -636,8 +686,12 @@ open class StandardSystemOperationTools(private val context: Context) {
         val includeAddress =
                 tool.parameters.find { it.name == "include_address" }?.value?.toBoolean() ?: true
 
+        ToolProgressNotifier.notifyStart(context, "get_location", "📍 正在调用获取位置工具...")
+        ToolProgressNotifier.notifyInProgress(context, "get_location", "📋 准备获取设备位置...")
+
         return try {
             // 检查位置权限
+            ToolProgressNotifier.notifyInProgress(context, "get_location", "🔐 正在检查位置权限...")
             val hasFineLocationPermission =
                     context.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) ==
                             android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -649,6 +703,7 @@ open class StandardSystemOperationTools(private val context: Context) {
 
             // 如果没有任何位置权限，返回错误
             if (!hasFineLocationPermission && !hasCoarseLocationPermission) {
+                ToolProgressNotifier.notifyError(context, "get_location", "❌ 没有位置权限")
                 return ToolResult(
                         toolName = tool.name,
                         success = false,
@@ -659,6 +714,8 @@ open class StandardSystemOperationTools(private val context: Context) {
 
             // 根据精度要求和权限情况决定使用哪种精度
             val actualHighAccuracy = highAccuracy && hasFineLocationPermission
+
+            ToolProgressNotifier.notifyInProgress(context, "get_location", "📡 正在获取位置坐标...")
 
             // 使用Dispatchers.Main确保在主线程上执行位置操作
             @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -809,6 +866,7 @@ open class StandardSystemOperationTools(private val context: Context) {
 
             // 处理位置结果
             if (locationResult == null) {
+                ToolProgressNotifier.notifyError(context, "get_location", "❌ 无法获取位置信息")
                 return ToolResult(
                         toolName = tool.name,
                         success = false,
@@ -820,6 +878,7 @@ open class StandardSystemOperationTools(private val context: Context) {
             val resultData =
                     if (includeAddress) {
                         // 获取地址信息
+                        ToolProgressNotifier.notifyInProgress(context, "get_location", "🏠 正在获取地址信息...")
                         val addressInfo =
                                 getAddressFromLocation(
                                         locationResult.latitude,
@@ -849,9 +908,12 @@ open class StandardSystemOperationTools(private val context: Context) {
                         )
                     }
 
+            ToolProgressNotifier.notifySuccess(context, "get_location", "✅ 位置获取成功")
+
             return ToolResult(toolName = tool.name, success = true, result = resultData, error = "")
         } catch (e: Exception) {
             AppLogger.e(TAG, "获取位置信息时出错", e)
+            ToolProgressNotifier.notifyError(context, "get_location", "❌ 获取位置出错: ${e.message}")
             return ToolResult(
                     toolName = tool.name,
                     success = false,
@@ -930,14 +992,26 @@ open class StandardSystemOperationTools(private val context: Context) {
                 else -> android.app.WallpaperManager.FLAG_SYSTEM
             }
 
+            // 发送开始消息
+            val whichText = when (which.lowercase()) {
+                "lock" -> "锁屏壁纸"
+                "both" -> "系统和锁屏壁纸"
+                else -> "系统壁纸"
+            }
+            ToolProgressNotifier.notifyStart(context, "set_wallpaper", "🖼️ 正在调用壁纸设置工具...")
+            ToolProgressNotifier.notifyInProgress(context, "set_wallpaper", "📋 准备设置${whichText}...")
+
             // 如果有编辑提示词，先编辑图片再设置壁纸
             if (editPrompt.isNotBlank()) {
                 AppLogger.d(TAG, "壁纸设置包含编辑提示词: $editPrompt")
+                ToolProgressNotifier.notifyInProgress(context, "set_wallpaper", "🤖 正在调用AI模型...")
+                ToolProgressNotifier.notifyInProgress(context, "set_wallpaper", "✏️ 正在使用AI编辑图片: $editPrompt")
 
                 val result = when {
                     imagePath.isNotBlank() -> {
                         val file = File(imagePath)
                         if (!file.exists()) {
+                            ToolProgressNotifier.notifyError(context, "set_wallpaper", "❌ 图片文件不存在")
                             return ToolResult(
                                 toolName = tool.name,
                                 success = false,
@@ -945,16 +1019,19 @@ open class StandardSystemOperationTools(private val context: Context) {
                                 error = "Image file does not exist: $imagePath"
                             )
                         }
+                        ToolProgressNotifier.notifyInProgress(context, "set_wallpaper", "📁 从本地文件加载图片...")
                         com.ai.assistance.operit.util.WallpaperUtil.editAndSetWallpaperFromFile(
                             context, file, editPrompt, whichFlag
                         )
                     }
                     imageUrl.isNotBlank() -> {
+                        ToolProgressNotifier.notifyInProgress(context, "set_wallpaper", "🌐 从URL下载图片...")
                         com.ai.assistance.operit.util.WallpaperUtil.editAndSetWallpaperFromUrl(
                             context, imageUrl, editPrompt, whichFlag
                         )
                     }
                     else -> {
+                        ToolProgressNotifier.notifyError(context, "set_wallpaper", "❌ 未提供图片来源")
                         return ToolResult(
                             toolName = tool.name,
                             success = false,
@@ -965,6 +1042,7 @@ open class StandardSystemOperationTools(private val context: Context) {
                 }
 
                 if (result.isSuccess) {
+                    ToolProgressNotifier.notifySuccess(context, "set_wallpaper", "✅ AI编辑完成，壁纸设置成功！")
                     ToolResult(
                         toolName = tool.name,
                         success = true,
@@ -972,11 +1050,13 @@ open class StandardSystemOperationTools(private val context: Context) {
                         error = ""
                     )
                 } else {
+                    val errorMsg = result.exceptionOrNull()?.message ?: "壁纸编辑设置失败"
+                    ToolProgressNotifier.notifyError(context, "set_wallpaper", "❌ $errorMsg")
                     ToolResult(
                         toolName = tool.name,
                         success = false,
                         result = StringResultData(""),
-                        error = result.exceptionOrNull()?.message ?: "壁纸编辑设置失败"
+                        error = errorMsg
                     )
                 }
             } else {
@@ -986,6 +1066,7 @@ open class StandardSystemOperationTools(private val context: Context) {
                         // 从本地文件设置壁纸
                         val file = File(imagePath)
                         if (!file.exists()) {
+                            ToolProgressNotifier.notifyError(context, "set_wallpaper", "❌ 图片文件不存在")
                             return ToolResult(
                                 toolName = tool.name,
                                 success = false,
@@ -994,11 +1075,13 @@ open class StandardSystemOperationTools(private val context: Context) {
                             )
                         }
 
+                        ToolProgressNotifier.notifyInProgress(context, "set_wallpaper", "📁 从本地文件设置壁纸...")
                         val result = com.ai.assistance.operit.util.WallpaperUtil.setWallpaperFromFile(
                             context, file, whichFlag
                         )
 
                         if (result.isSuccess) {
+                            ToolProgressNotifier.notifySuccess(context, "set_wallpaper", "✅ ${whichText}设置成功！")
                             ToolResult(
                                 toolName = tool.name,
                                 success = true,
@@ -1006,21 +1089,25 @@ open class StandardSystemOperationTools(private val context: Context) {
                                 error = ""
                             )
                         } else {
+                            val errorMsg = result.exceptionOrNull()?.message ?: "壁纸设置失败"
+                            ToolProgressNotifier.notifyError(context, "set_wallpaper", "❌ $errorMsg")
                             ToolResult(
                                 toolName = tool.name,
                                 success = false,
                                 result = StringResultData(""),
-                                error = result.exceptionOrNull()?.message ?: "壁纸设置失败"
+                                error = errorMsg
                             )
                         }
                     }
                     imageUrl.isNotBlank() -> {
                         // 从URL设置壁纸
+                        ToolProgressNotifier.notifyInProgress(context, "set_wallpaper", "🌐 从URL下载图片...")
                         val result = com.ai.assistance.operit.util.WallpaperUtil.setWallpaperFromUrl(
                             context, imageUrl, whichFlag
                         )
 
                         if (result.isSuccess) {
+                            ToolProgressNotifier.notifySuccess(context, "set_wallpaper", "✅ ${whichText}设置成功！")
                             ToolResult(
                                 toolName = tool.name,
                                 success = true,
@@ -1028,15 +1115,18 @@ open class StandardSystemOperationTools(private val context: Context) {
                                 error = ""
                             )
                         } else {
+                            val errorMsg = result.exceptionOrNull()?.message ?: "壁纸设置失败"
+                            ToolProgressNotifier.notifyError(context, "set_wallpaper", "❌ $errorMsg")
                             ToolResult(
                                 toolName = tool.name,
                                 success = false,
                                 result = StringResultData(""),
-                                error = result.exceptionOrNull()?.message ?: "壁纸设置失败"
+                                error = errorMsg
                             )
                         }
                     }
                     else -> {
+                        ToolProgressNotifier.notifyError(context, "set_wallpaper", "❌ 未提供图片来源")
                         ToolResult(
                             toolName = tool.name,
                             success = false,
@@ -1048,6 +1138,7 @@ open class StandardSystemOperationTools(private val context: Context) {
             }
         } catch (e: Exception) {
             AppLogger.e(TAG, "设置壁纸时出错", e)
+            ToolProgressNotifier.notifyError(context, "set_wallpaper", "❌ 设置壁纸出错: ${e.message}")
             ToolResult(
                 toolName = tool.name,
                 success = false,

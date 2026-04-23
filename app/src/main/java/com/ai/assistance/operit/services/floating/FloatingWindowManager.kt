@@ -84,8 +84,8 @@ interface FloatingWindowCallback {
     fun onCancelMessage()
     fun onAttachmentRequest(request: String)
     fun onRemoveAttachment(filePath: String)
-    fun getMessages(): List<ChatMessage>
-    fun getAttachments(): List<AttachmentInfo>
+    fun getMessages(): State<List<ChatMessage>>
+    fun getAttachments(): State<List<AttachmentInfo>>
     fun saveState()
     fun getColorScheme(): ColorScheme?
     fun getTypography(): Typography?

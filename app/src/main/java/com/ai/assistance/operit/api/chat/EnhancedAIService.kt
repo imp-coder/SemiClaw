@@ -1901,7 +1901,9 @@ class EnhancedAIService private constructor(private val context: Context) {
             }
             
             // 获取所有工具分类
-            val isEnglish = LocaleUtils.getCurrentLanguage(context) == "en"
+            // 只有当用户明确设置为英文时才使用英文，否则默认使用中文
+            val currentLanguage = LocaleUtils.getCurrentLanguage(context).lowercase()
+            val isEnglish = currentLanguage == "en" || currentLanguage.startsWith("en-") || currentLanguage.startsWith("en_")
 
             // 后端识图服务是否可用（IMAGE_RECOGNITION 功能），用于 intent-based 视觉模型
             val hasBackendImageRecognition = multiServiceManager.hasImageRecognitionConfigured()

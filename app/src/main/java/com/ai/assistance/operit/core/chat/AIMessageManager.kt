@@ -820,7 +820,9 @@ object AIMessageManager {
             } else {
                 // 如果是自动续写，在总结消息尾部添加续写提示
                 val trimmedSummary = summary.trim()
-                val useEnglish = LocaleUtils.getCurrentLanguage(context).lowercase().startsWith("en")
+                // 只有当用户明确设置为英文时才使用英文，否则默认使用中文
+                val currentLanguage = LocaleUtils.getCurrentLanguage(context).lowercase()
+                val useEnglish = currentLanguage == "en" || currentLanguage.startsWith("en-") || currentLanguage.startsWith("en_")
                 val packageWarmupBlock = buildPackageWarmupBlock(messagesToSummarize, useEnglish)
                 val summaryWithQuotes = buildString {
                     append(trimmedSummary)

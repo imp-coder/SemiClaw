@@ -68,6 +68,18 @@ class CameraCaptureService private constructor(private val context: Context) {
                 instance
             }
         }
+
+        /**
+         * 获取相反的摄像头方向
+         * FRONT(1) -> BACK(0), BACK(0) -> FRONT(1)
+         */
+        fun getOppositeLensFacing(lensFacing: Int): Int {
+            return if (lensFacing == CameraSelector.LENS_FACING_FRONT) {
+                CameraSelector.LENS_FACING_BACK
+            } else {
+                CameraSelector.LENS_FACING_FRONT
+            }
+        }
     }
 
     private var cameraProvider: ProcessCameraProvider? = null
@@ -155,24 +167,35 @@ class CameraCaptureService private constructor(private val context: Context) {
                         }
 
                         // Try multiple camera selection strategies for external cameras
-                        // Strategy 1: Use specified lensFacing (back/front)
-                        var cameraSelector = CameraSelector.Builder()
-                            .requireLensFacing(lensFacing)
-                            .build()
-
+                        // Strategy 1: Try all lensFacing options (FRONT=1, BACK=0)
                         var boundSuccessfully = false
-                        try {
-                            cameraProvider?.bindToLifecycle(
-                                owner,
-                                cameraSelector,
-                                imageCapture
-                            )
-                            boundSuccessfully = true
-                            AppLogger.d(TAG, "Camera bound successfully with LensFacing=$lensFacing")
-                        } catch (e: Exception) {
-                            AppLogger.w(TAG, "Failed to bind with LensFacing=$lensFacing: ${e.message}")
 
-                            // Strategy 2: Try to find any available camera (for external cameras with null lensFacing)
+                        // 先尝试传入的方向，然后尝试另一个方向
+                        val lensFacingOptions = listOf(lensFacing, getOppositeLensFacing(lensFacing))
+                        AppLogger.d(TAG, "Will try lensFacing options: $lensFacingOptions")
+
+                        for (tryLensFacing in lensFacingOptions) {
+                            if (boundSuccessfully) break
+                            try {
+                                val cameraSelector = CameraSelector.Builder()
+                                    .requireLensFacing(tryLensFacing)
+                                    .build()
+
+                                cameraProvider?.bindToLifecycle(
+                                    owner,
+                                    cameraSelector,
+                                    imageCapture
+                                )
+                                boundSuccessfully = true
+                                currentLensFacing = tryLensFacing
+                                AppLogger.d(TAG, "Camera bound successfully with LensFacing=$tryLensFacing")
+                            } catch (e: Exception) {
+                                AppLogger.w(TAG, "Failed to bind with LensFacing=$tryLensFacing: ${e.message}")
+                            }
+                        }
+
+                        // Strategy 2: Try to find any available camera (for external cameras with null lensFacing)
+                        if (!boundSuccessfully) {
                             try {
                                 // Get all available cameras and use the first one
                                 val availableCameras = cameraProvider?.availableCameraInfos ?: emptyList()
@@ -180,12 +203,12 @@ class CameraCaptureService private constructor(private val context: Context) {
 
                                 if (availableCameras.isNotEmpty()) {
                                     // Use first available camera (external cameras usually appear first)
-                                    val firstCameraId = availableCameras.first().cameraSelector
-                                    AppLogger.d(TAG, "Using first available camera selector")
+                                    val firstCameraSelector = availableCameras.first().cameraSelector
+                                    AppLogger.d(TAG, "Using first available camera selector: $firstCameraSelector")
 
                                     cameraProvider?.bindToLifecycle(
                                         owner,
-                                        firstCameraId,
+                                        firstCameraSelector,
                                         imageCapture
                                     )
                                     boundSuccessfully = true
@@ -193,6 +216,41 @@ class CameraCaptureService private constructor(private val context: Context) {
                                 }
                             } catch (e2: Exception) {
                                 AppLogger.e(TAG, "Failed to bind with first available camera: ${e2.message}")
+                            }
+                        }
+
+                        // Strategy 3: Try default camera selector (no lensFacing requirement)
+                        // This works for some external/USB cameras that don't report lensFacing
+                        if (!boundSuccessfully) {
+                            try {
+                                AppLogger.d(TAG, "Trying default camera selector (no lensFacing requirement)")
+                                val defaultSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+                                cameraProvider?.bindToLifecycle(
+                                    owner,
+                                    defaultSelector,
+                                    imageCapture
+                                )
+                                boundSuccessfully = true
+                                AppLogger.d(TAG, "Camera bound successfully with DEFAULT_BACK_CAMERA")
+                            } catch (e3: Exception) {
+                                AppLogger.w(TAG, "Failed to bind with DEFAULT_BACK_CAMERA: ${e3.message}")
+                            }
+                        }
+
+                        // Strategy 4: Try DEFAULT_FRONT_CAMERA
+                        if (!boundSuccessfully) {
+                            try {
+                                AppLogger.d(TAG, "Trying DEFAULT_FRONT_CAMERA")
+                                cameraProvider?.bindToLifecycle(
+                                    owner,
+                                    CameraSelector.DEFAULT_FRONT_CAMERA,
+                                    imageCapture
+                                )
+                                boundSuccessfully = true
+                                AppLogger.d(TAG, "Camera bound successfully with DEFAULT_FRONT_CAMERA")
+                            } catch (e4: Exception) {
+                                AppLogger.w(TAG, "Failed to bind with DEFAULT_FRONT_CAMERA: ${e4.message}")
                             }
                         }
 

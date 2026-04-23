@@ -4,6 +4,7 @@ import android.app.WallpaperManager
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.util.Base64
+import com.ai.assistance.operit.core.tools.ToolProgressNotifier
 import com.ai.assistance.operit.data.model.FeishuConfig
 import com.ai.assistance.operit.data.preferences.ApiPreferences
 import com.ai.assistance.operit.services.FeishuClient
@@ -29,7 +30,7 @@ object WallpaperUtil {
 
     // DashScope 图片编辑 API 端点
     private const val DASHSCOPE_IMAGE_EDIT_ENDPOINT = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
-    private const val QWEN_IMAGE_MODEL = "qwen-image-2.0-pro"
+    private const val QWEN_IMAGE_MODEL = "qwen-image-2.0"
 
     // HTTP 客户端（用于图片编辑 API）
     private val httpClient = OkHttpClient.Builder()
@@ -60,15 +61,20 @@ object WallpaperUtil {
         try {
             AppLogger.d(TAG, "开始从飞书下载图片设置壁纸，imageKey=$imageKey, messageId=$messageId")
 
+            ToolProgressNotifier.notifyInProgress(context, "set_wallpaper", "📥 正在从飞书下载图片...")
+
             // 1. 从飞书下载图片
             val imageData = feishuClient.downloadImage(config, imageKey, messageId)
             if (imageData == null || imageData.isEmpty()) {
+                ToolProgressNotifier.notifyError(context, "set_wallpaper", "❌ 下载飞书图片失败")
                 return@withContext Result.failure(Exception("下载飞书图片失败"))
             }
 
             AppLogger.d(TAG, "图片下载成功，大小: ${imageData.size} bytes")
+            ToolProgressNotifier.notifyInProgress(context, "set_wallpaper", "✅ 图片下载成功 (${imageData.size / 1024}KB)")
 
             // 2. 保存到临时文件
+            ToolProgressNotifier.notifyInProgress(context, "set_wallpaper", "💾 正在保存图片...")
             val tempFile = File(context.cacheDir, "wallpaper_temp_${System.currentTimeMillis()}.jpg")
             FileOutputStream(tempFile).use { fos ->
                 fos.write(imageData)
@@ -77,6 +83,7 @@ object WallpaperUtil {
             AppLogger.d(TAG, "图片已保存到临时文件: ${tempFile.absolutePath}")
 
             // 3. 设置壁纸
+            ToolProgressNotifier.notifyInProgress(context, "set_wallpaper", "📱 正在设置壁纸...")
             val result = setWallpaperFromFile(context, tempFile, which)
 
             // 4. 删除临时文件
@@ -85,6 +92,7 @@ object WallpaperUtil {
             result
         } catch (e: Exception) {
             AppLogger.e(TAG, "设置壁纸失败", e)
+            ToolProgressNotifier.notifyError(context, "set_wallpaper", "❌ 设置壁纸失败: ${e.message}")
             Result.failure(e)
         }
     }
@@ -113,24 +121,32 @@ object WallpaperUtil {
         try {
             AppLogger.d(TAG, "开始从飞书下载图片进行编辑，imageKey=$imageKey, editPrompt=$editPrompt")
 
+            ToolProgressNotifier.notifyInProgress(context, "set_wallpaper", "📥 正在从飞书下载原始图片...")
+
             // 1. 从飞书下载图片
             val imageData = feishuClient.downloadImage(config, imageKey, messageId)
             if (imageData == null || imageData.isEmpty()) {
+                ToolProgressNotifier.notifyError(context, "set_wallpaper", "❌ 下载飞书图片失败")
                 return@withContext Result.failure(Exception("下载飞书图片失败"))
             }
 
             AppLogger.d(TAG, "图片下载成功，大小: ${imageData.size} bytes")
+            ToolProgressNotifier.notifyInProgress(context, "set_wallpaper", "✅ 图片下载成功 (${imageData.size / 1024}KB)")
 
             // 2. 使用 qwen-image-2.0 编辑图片
+            ToolProgressNotifier.notifyInProgress(context, "set_wallpaper", "🤖 正在调用AI模型编辑图片...")
             val editResult = editImageWithQwen(imageData, editPrompt, "image/jpeg")
             if (editResult.isFailure) {
+                ToolProgressNotifier.notifyError(context, "set_wallpaper", "❌ 图片编辑失败: ${editResult.exceptionOrNull()?.message}")
                 return@withContext Result.failure(editResult.exceptionOrNull() ?: Exception("图片编辑失败"))
             }
 
             val editedImageData = editResult.getOrThrow()
             AppLogger.d(TAG, "图片编辑成功，编辑后大小: ${editedImageData.size} bytes")
+            ToolProgressNotifier.notifyInProgress(context, "set_wallpaper", "✅ 图片编辑成功 (${editedImageData.size / 1024}KB)")
 
             // 3. 保存编辑后的图片到临时文件
+            ToolProgressNotifier.notifyInProgress(context, "set_wallpaper", "💾 正在保存编辑后的图片...")
             val editedFile = File(context.cacheDir, "wallpaper_edited_${System.currentTimeMillis()}.png")
             FileOutputStream(editedFile).use { fos ->
                 fos.write(editedImageData)
@@ -139,6 +155,7 @@ object WallpaperUtil {
             AppLogger.d(TAG, "编辑后的图片已保存: ${editedFile.absolutePath}")
 
             // 4. 设置壁纸
+            ToolProgressNotifier.notifyInProgress(context, "set_wallpaper", "📱 正在设置壁纸...")
             val result = setWallpaperFromFile(context, editedFile, which)
 
             // 5. 删除临时文件
@@ -147,6 +164,7 @@ object WallpaperUtil {
             result
         } catch (e: Exception) {
             AppLogger.e(TAG, "编辑并设置壁纸失败", e)
+            ToolProgressNotifier.notifyError(context, "set_wallpaper", "❌ 编辑并设置壁纸失败: ${e.message}")
             Result.failure(e)
         }
     }

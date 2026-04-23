@@ -59,42 +59,40 @@ class PermissionGuideViewModel : ViewModel() {
         } else {
             true // 低于Android 6.0不需要特别申请
         }
-        
-        // 电池优化豁免
-        val hasBatteryOptimizationExemption = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
-            powerManager.isIgnoringBatteryOptimizations(context.packageName)
-        } else {
-            true // 低于Android 6.0不需要特别申请
-        }
-        
+
+        // 摄像头权限
+        val hasCameraPermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+
         // 位置权限
         val hasLocationPermission = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED || 
+        ) == PackageManager.PERMISSION_GRANTED ||
                 ContextCompat.checkSelfPermission(
                     context,
                     Manifest.permission.ACCESS_COARSE_LOCATION
                 ) == PackageManager.PERMISSION_GRANTED
-        
+
         // 更新UI状态
         _uiState.update { currentState ->
             currentState.copy(
                 hasStoragePermission = hasStoragePermission,
                 hasOverlayPermission = hasOverlayPermission,
-                hasBatteryOptimizationExemption = hasBatteryOptimizationExemption,
+                hasCameraPermission = hasCameraPermission,
                 hasLocationPermission = hasLocationPermission,
-                allBasicPermissionsGranted = hasStoragePermission && 
-                        hasOverlayPermission && 
-                        hasBatteryOptimizationExemption && 
+                allBasicPermissionsGranted = hasStoragePermission &&
+                        hasOverlayPermission &&
+                        hasCameraPermission &&
                         hasLocationPermission
             )
         }
-        
+
         AppLogger.d(TAG, "Permissions checked: Storage=$hasStoragePermission, " +
                 "Overlay=$hasOverlayPermission, " +
-                "Battery=$hasBatteryOptimizationExemption, " +
+                "Camera=$hasCameraPermission, " +
                 "Location=$hasLocationPermission")
     }
     
@@ -140,13 +138,28 @@ class PermissionGuideViewModel : ViewModel() {
             val newState = currentState.copy(hasLocationPermission = granted)
             // 同时更新allBasicPermissionsGranted状态
             newState.copy(
-                allBasicPermissionsGranted = newState.hasStoragePermission && 
-                        newState.hasOverlayPermission && 
-                        newState.hasBatteryOptimizationExemption && 
+                allBasicPermissionsGranted = newState.hasStoragePermission &&
+                        newState.hasOverlayPermission &&
+                        newState.hasCameraPermission &&
                         newState.hasLocationPermission
             )
         }
         AppLogger.d(TAG, "Location permission updated: $granted")
+    }
+
+    // 更新摄像头权限状态
+    fun updateCameraPermission(granted: Boolean) {
+        _uiState.update { currentState ->
+            val newState = currentState.copy(hasCameraPermission = granted)
+            // 同时更新allBasicPermissionsGranted状态
+            newState.copy(
+                allBasicPermissionsGranted = newState.hasStoragePermission &&
+                        newState.hasOverlayPermission &&
+                        newState.hasCameraPermission &&
+                        newState.hasLocationPermission
+            )
+        }
+        AppLogger.d(TAG, "Camera permission updated: $granted")
     }
     
     // UI状态数据类
@@ -154,7 +167,7 @@ class PermissionGuideViewModel : ViewModel() {
         val currentStep: Step = Step.WELCOME,
         val hasStoragePermission: Boolean = false,
         val hasOverlayPermission: Boolean = false,
-        val hasBatteryOptimizationExemption: Boolean = false,
+        val hasCameraPermission: Boolean = false,
         val hasLocationPermission: Boolean = false,
         val allBasicPermissionsGranted: Boolean = false,
         val selectedPermissionLevel: AndroidPermissionLevel? = null,

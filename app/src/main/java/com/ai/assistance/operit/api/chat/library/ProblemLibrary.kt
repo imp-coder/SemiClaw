@@ -157,7 +157,9 @@ object ProblemLibrary {
         repository: MemoryRepository,
         aiService: AIService
     ) {
-        val useEnglish = LocaleUtils.getCurrentLanguage(context).lowercase().startsWith("en")
+        // 只有当用户明确设置为英文时才使用英文，否则默认使用中文
+        val currentLanguage = LocaleUtils.getCurrentLanguage(context).lowercase()
+        val useEnglish = currentLanguage == "en" || currentLanguage.startsWith("en-") || currentLanguage.startsWith("en_")
         val memoriesDigest = memories.joinToString("\n") { "- title: ${it.title}, content: ${it.content.take(100)}..." }
         val systemPrompt = FunctionalPrompts.buildMemoryAutoCategorizePrompt(
             existingFolders = existingFolders,
@@ -476,7 +478,9 @@ object ProblemLibrary {
         profileId: String
     ): ParsedAnalysis {
         try {
-            val useEnglish = LocaleUtils.getCurrentLanguage(context).lowercase().startsWith("en")
+            // 只有当用户明确设置为英文时才使用英文，否则默认使用中文
+            val currentLanguage = LocaleUtils.getCurrentLanguage(context).lowercase()
+            val useEnglish = currentLanguage == "en" || currentLanguage.startsWith("en-") || currentLanguage.startsWith("en_")
             val currentPreferences = withContext(Dispatchers.IO) {
                 var preferences = ""
                 preferencesManager.getUserPreferencesFlow().take(1).collect { profile ->

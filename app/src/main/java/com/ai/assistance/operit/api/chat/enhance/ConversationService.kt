@@ -92,7 +92,9 @@ class ConversationService(
             multiServiceManager: MultiServiceManager
     ): String {
         try {
-            val useEnglish = LocaleUtils.getCurrentLanguage(context).lowercase().startsWith("en")
+            // 只有当用户明确设置为英文时才使用英文，否则默认使用中文
+            val currentLanguage = LocaleUtils.getCurrentLanguage(context).lowercase()
+            val useEnglish = currentLanguage == "en" || currentLanguage.startsWith("en-") || currentLanguage.startsWith("en_")
             val systemPrompt = FunctionalPrompts.buildSummarySystemPrompt(previousSummary, useEnglish)
 
             val finalMessages = listOf(Pair("system", systemPrompt)) + messages
@@ -338,7 +340,10 @@ class ConversationService(
                     apiPreferences.safBookmarksFlow.first().map { it.name }
                 }.getOrElse { emptyList() }
 
-                val useEnglish = LocaleUtils.getCurrentLanguage(context).lowercase().startsWith("en")
+                // 只有当用户明确设置为英文时才使用英文，否则默认使用中文
+                // 这样可以确保飞书等后台服务也能正确使用中文系统提示词
+                val currentLanguage = LocaleUtils.getCurrentLanguage(context).lowercase()
+                val useEnglish = currentLanguage == "en" || currentLanguage.startsWith("en-") || currentLanguage.startsWith("en_")
                 resolvedUseEnglish = useEnglish
 
                 // 获取系统提示词，现在传入workspacePath和识图配置状态
@@ -878,7 +883,9 @@ ${FunctionalPrompts.translationUserPrompt(targetLanguage, text)}
         
         val toolList = toolDescriptions.joinToString("\n") { "- $it" }
 
-        val useEnglish = LocaleUtils.getCurrentLanguage(context).lowercase().startsWith("en")
+        // 只有当用户明确设置为英文时才使用英文，否则默认使用中文
+        val currentLanguage = LocaleUtils.getCurrentLanguage(context).lowercase()
+        val useEnglish = currentLanguage == "en" || currentLanguage.startsWith("en-") || currentLanguage.startsWith("en_")
         val descriptionPrompt =
             FunctionalPrompts.packageDescriptionUserPrompt(
                 pluginName = pluginName,

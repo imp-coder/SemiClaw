@@ -196,7 +196,9 @@ class AutoGlmViewModel(private val context: Context) : ViewModel() {
     }
 
     private fun buildUiAutomationSystemPrompt(): String {
-        val useEnglish = LocaleUtils.getCurrentLanguage(context).lowercase().startsWith("en")
+        // 只有当用户明确设置为英文时才使用英文，否则默认使用中文
+        val currentLanguage = LocaleUtils.getCurrentLanguage(context).lowercase()
+        val useEnglish = currentLanguage == "en" || currentLanguage.startsWith("en-") || currentLanguage.startsWith("en_")
         val formattedDate =
             if (useEnglish) {
                 SimpleDateFormat("yyyy-MM-dd EEEE", Locale.ENGLISH).format(Date())

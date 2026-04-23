@@ -47,7 +47,9 @@ fun ToolPromptManagerDialog(
 
     val context = LocalContext.current
     val useEnglish = remember(context) {
-        LocaleUtils.getCurrentLanguage(context).lowercase().startsWith("en")
+        // 只有当用户明确设置为英文时才使用英文，否则默认使用中文
+        val currentLanguage = LocaleUtils.getCurrentLanguage(context).lowercase()
+        currentLanguage == "en" || currentLanguage.startsWith("en-") || currentLanguage.startsWith("en_")
     }
     val manageableTools = remember(useEnglish) {
         SystemToolPrompts.getManageableToolPrompts(useEnglish)

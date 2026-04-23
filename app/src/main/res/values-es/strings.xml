@@ -748,8 +748,8 @@
     <string name="permission_guide_storage_desc">Permitir a la aplicación leer y escribir archivos</string>
     <string name="permission_guide_overlay_title">Permiso de Superposición</string>
     <string name="permission_guide_overlay_desc">Permitir a la aplicación mostrar ventanas flotantes</string>
-    <string name="permission_guide_battery_title">Exención de Optimización de Batería</string>
-    <string name="permission_guide_battery_desc">Permitir a la aplicación ejecutarse en segundo plano</string>
+    <string name="permission_guide_camera_title">Permiso de Cámara</string>
+    <string name="permission_guide_camera_desc">Permitir a la aplicación usar la cámara para monitoreo interior del vehículo y otras funciones</string>
     <string name="permission_guide_location_title">Permiso de Ubicación</string>
     <string name="permission_guide_location_desc">Permitir a la aplicación acceder a información de ubicación</string>
     <string name="permission_guide_check_permissions">Verificar Estado de Permisos</string>

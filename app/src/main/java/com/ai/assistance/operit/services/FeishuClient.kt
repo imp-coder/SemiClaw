@@ -269,6 +269,110 @@ class FeishuClient(private val context: Context) {
     }
 
     /**
+     * 获取单条消息
+     *
+     * @param config 飞书配置
+     * @param messageId 消息 ID
+     * @return 消息信息，失败返回 null
+     */
+    suspend fun getMessageById(
+        config: FeishuConfig,
+        messageId: String
+    ): FeishuMessage? {
+        if (!config.isConfigured()) {
+            AppLogger.e(TAG, "飞书未配置")
+            return null
+        }
+
+        val token = getTenantAccessToken(config) ?: return null
+
+        return withContext(Dispatchers.IO) {
+            try {
+                val url = "$BASE_URL$GET_MESSAGES_URL/$messageId"
+
+                val request = Request.Builder()
+                    .url(url)
+                    .get()
+                    .addHeader("Authorization", "Bearer $token")
+                    .build()
+
+                httpClient.newCall(request).execute().use { response ->
+                    val responseBody = response.body?.string().orEmpty()
+                    if (!response.isSuccessful) {
+                        AppLogger.e(TAG, "获取单条消息失败: ${response.code}")
+                        return@withContext null
+                    }
+
+                    val jsonResponse = JSONObject(responseBody)
+                    val code = jsonResponse.optInt("code", -1)
+                    if (code != 0) {
+                        AppLogger.e(TAG, "获取单条消息失败: ${jsonResponse.optString("msg")}")
+                        return@withContext null
+                    }
+
+                    val data = jsonResponse.optJSONObject("data")
+                    val item = data?.optJSONArray("items")?.optJSONObject(0)
+                        ?: data?.optJSONObject("result")
+                        ?: data
+
+                    if (item == null) {
+                        AppLogger.w(TAG, "消息数据为空")
+                        return@withContext null
+                    }
+
+                    val msgType = item.optString("msg_type") ?: item.optString("message_type") ?: "text"
+                    AppLogger.d(TAG, "获取单条消息成功: messageId=$messageId, msgType=$msgType")
+
+                    FeishuMessage(
+                        messageId = item.optString("message_id"),
+                        chatId = item.optString("chat_id"),
+                        msgType = msgType,
+                        content = item.optString("content") ?: "",
+                        createTime = item.optLong("create_time"),
+                        senderId = item.optJSONObject("sender")?.optString("id"),
+                        senderName = item.optJSONObject("sender")?.optString("name")
+                    )
+                }
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "获取单条消息异常", e)
+                null
+            }
+        }
+    }
+
+    /**
+     * 从消息内容中提取图片 key
+     */
+    fun extractImageKeyFromMessage(message: FeishuMessage): String? {
+        AppLogger.d(TAG, "extractImageKeyFromMessage: msgType=${message.msgType}, content=${message.content?.take(100)}")
+
+        // 图片消息直接提取 image_key
+        if (message.msgType == "image" || message.msgType?.contains("image") == true) {
+            try {
+                if (message.content.isNullOrBlank()) {
+                    AppLogger.w(TAG, "图片消息内容为空")
+                    return null
+                }
+                val contentJson = JSONObject(message.content)
+                val imageKey = contentJson.optString("image_key", "")
+                if (imageKey.isNotBlank()) {
+                    AppLogger.d(TAG, "提取到 image_key: $imageKey")
+                    return imageKey
+                }
+                // 尝试 file_key
+                val fileKey = contentJson.optString("file_key", "")
+                if (fileKey.isNotBlank()) {
+                    AppLogger.d(TAG, "提取到 file_key: $fileKey")
+                    return fileKey
+                }
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "解析图片消息内容失败", e)
+            }
+        }
+        return null
+    }
+
+    /**
      * 获取聊天列表
      *
      * @param config 飞书配置

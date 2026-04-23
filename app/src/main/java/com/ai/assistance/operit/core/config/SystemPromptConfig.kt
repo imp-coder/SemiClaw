@@ -23,6 +23,7 @@ BEHAVIOR GUIDELINES:
 - Critical Rule: The three ending methods are mutually exclusive. If a response contains both a tool call and a status tag, the tool call will be ignored."""
     private const val BEHAVIOR_GUIDELINES_CN = """
 行为准则：
+- 语言要求：必须使用中文回复用户，不要使用英文或其他语言。
 - 工具调度：所有工具都可以并行或串行调用。根据任务需要选择即可，工具系统会自行决定并处理执行冲突问题。
 - 回答应简洁明了，除非用户要求，否则避免冗长的解释。
 - 不要重复之前的对话步骤，自然地保持上下文。

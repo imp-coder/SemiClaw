@@ -1024,7 +1024,9 @@ open class StandardFileSystemTools(protected val context: Context) {
             val overallStartTime = System.currentTimeMillis()
             ToolProgressBus.update(toolName, 0f, "Preparing search...")
 
-            val useEnglish = LocaleUtils.getCurrentLanguage(context).lowercase().startsWith("en")
+            // 只有当用户明确设置为英文时才使用英文，否则默认使用中文
+            val currentLanguage = LocaleUtils.getCurrentLanguage(context).lowercase()
+            val useEnglish = currentLanguage == "en" || currentLanguage.startsWith("en-") || currentLanguage.startsWith("en_")
 
             val fallback = listOf(intent.take(60)).filter { it.isNotBlank() }
             var queries = normalizeQueries(fallback).take(8)

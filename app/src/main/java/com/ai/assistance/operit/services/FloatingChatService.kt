@@ -41,6 +41,7 @@ import com.ai.assistance.operit.services.floating.FloatingWindowCallback
 import com.ai.assistance.operit.services.floating.FloatingWindowManager
 import com.ai.assistance.operit.services.floating.FloatingWindowState
 import com.ai.assistance.operit.services.floating.StatusIndicatorStyle
+import com.ai.assistance.operit.core.tools.ToolProgressNotifier
 import com.ai.assistance.operit.ui.floating.FloatingMode
 import com.ai.assistance.operit.util.AppLogger
 import com.ai.assistance.operit.util.FileUtils
@@ -83,6 +84,9 @@ class FloatingChatService : Service(), FloatingWindowCallback {
     // 聊天服务核心 - 整合所有业务逻辑
     private lateinit var chatCore: ChatServiceCore
 
+    // 工具进度消息接收器
+    private var toolProgressReceiver: android.content.BroadcastReceiver? = null
+
     private var lastCrashTime = 0L
     private var crashCount = 0
     private val defaultExceptionHandler = Thread.getDefaultUncaughtExceptionHandler()
@@ -108,6 +112,7 @@ class FloatingChatService : Service(), FloatingWindowCallback {
         const val EXTRA_WAKE_LAUNCHED = "WAKE_LAUNCHED"
         const val EXTRA_AUTO_EXIT_AFTER_MS = "AUTO_EXIT_AFTER_MS"
         const val EXTRA_KEEP_IF_EXISTS = "KEEP_IF_EXISTS"
+        const val EXTRA_BACKGROUND_MODE = "BACKGROUND_MODE" // 后台模式，不显示悬浮窗
 
         fun getInstance(): FloatingChatService? = instance
     }
@@ -294,6 +299,9 @@ class FloatingChatService : Service(), FloatingWindowCallback {
 
             // 初始化飞书服务
             initFeishuService()
+
+            // 注册工具进度消息接收器
+            registerToolProgressReceiver()
 
         } catch (e: Exception) {
             AppLogger.e(TAG, "Error in onCreate", e)
@@ -517,7 +525,14 @@ class FloatingChatService : Service(), FloatingWindowCallback {
                     }
                 }
             }
-            windowManager.show()
+
+            // 检查是否是后台模式（不显示悬浮窗）
+            val backgroundMode = intent?.getBooleanExtra(EXTRA_BACKGROUND_MODE, false) == true
+            if (!backgroundMode) {
+                windowManager.show()
+            } else {
+                AppLogger.d(TAG, "后台模式启动，不显示悬浮窗")
+            }
         } catch (e: Exception) {
             AppLogger.e(TAG, "Error in onStartCommand", e)
         }
@@ -609,7 +624,10 @@ class FloatingChatService : Service(), FloatingWindowCallback {
                 }
             } catch (_: Exception) {
             }
-            
+
+            // 注销工具进度消息接收器
+            unregisterToolProgressReceiver()
+
             serviceScope.cancel()
             saveState()
             super.onDestroy()
@@ -708,9 +726,9 @@ class FloatingChatService : Service(), FloatingWindowCallback {
         removeAttachment(filePath)
     }
 
-    override fun getMessages(): List<ChatMessage> = chatMessages.value
+    override fun getMessages(): State<List<ChatMessage>> = chatMessages
 
-    override fun getAttachments(): List<AttachmentInfo> = attachments.value
+    override fun getAttachments(): State<List<AttachmentInfo>> = attachments
 
     override fun getInputProcessingState(): State<InputProcessingState> = inputProcessingState
 
@@ -809,28 +827,91 @@ class FloatingChatService : Service(), FloatingWindowCallback {
      * 初始化飞书服务
      */
     private fun initFeishuService() {
-        AppLogger.d(TAG, "开始初始化飞书服务...")
-        serviceScope.launch {
-            try {
-                val feishuService = FeishuServiceManager.getInstance(applicationContext)
+        AppLogger.d(TAG, "飞书服务由 FeishuAutoStartService 管理，此处不重复设置消息处理器")
+        // 消息处理由 FeishuAutoStartService 统一处理，避免处理器被覆盖
+    }
 
-                // 设置消息处理器
-                feishuService.setMessageHandler { message ->
-                    handleFeishuMessage(message)
-                }
+    /**
+     * 注册工具进度消息接收器
+     */
+    private fun registerToolProgressReceiver() {
+        if (toolProgressReceiver != null) return
 
-                AppLogger.d(TAG, "正在启动飞书 WebSocket 连接...")
-                // 启动服务
-                val started = feishuService.start()
-                if (started) {
-                    AppLogger.d(TAG, "飞书服务启动成功，WebSocket 已连接")
-                } else {
-                    AppLogger.w(TAG, "飞书服务未启动（请检查：1.飞书集成开关是否打开 2.是否点击了保存按钮）")
+        toolProgressReceiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == ToolProgressNotifier.ACTION_TOOL_PROGRESS) {
+                    val message = intent.getStringExtra(ToolProgressNotifier.EXTRA_MESSAGE) ?: return
+                    val toolName = intent.getStringExtra(ToolProgressNotifier.EXTRA_TOOL_NAME) ?: ""
+                    val progressType = intent.getStringExtra(ToolProgressNotifier.EXTRA_PROGRESS_TYPE) ?: ""
+
+                    AppLogger.d(TAG, "收到工具进度消息: $toolName - $message ($progressType)")
+
+                    serviceScope.launch {
+                        // 确保有当前聊天，如果没有则创建一个系统工具聊天
+                        val currentChatId = chatCore.currentChatId.value
+                        if (currentChatId == null) {
+                            AppLogger.d(TAG, "创建系统工具聊天用于显示进度消息")
+                            chatCore.createNewChat(
+                                characterCardName = "系统工具",
+                                group = "system"
+                            )
+                            // 等待 currentChatId 变为非 null
+                            var waitCount = 0
+                            while (chatCore.currentChatId.value == null && waitCount < 10) {
+                                kotlinx.coroutines.delay(100)
+                                waitCount++
+                            }
+                            AppLogger.d(TAG, "等待聊天创建完成，waitCount=$waitCount, chatId=${chatCore.currentChatId.value}")
+                        }
+
+                        // 根据消息类型确定 sender
+                        val sender = if (progressType == ToolProgressNotifier.ProgressType.USER_MESSAGE.name) {
+                            "user"  // 用户消息
+                        } else {
+                            "ai"    // AI/系统消息
+                        }
+
+                        // 添加消息到聊天历史
+                        val timestamp = System.currentTimeMillis()
+                        val chatMessage = ChatMessage(
+                            sender = sender,
+                            content = message,
+                            timestamp = timestamp
+                        )
+                        chatCore.getChatHistoryDelegate().addMessageToChatAsync(chatMessage)
+                        AppLogger.d(TAG, "消息已添加到聊天: $message (sender=$sender)")
+                    }
                 }
-            } catch (e: Exception) {
-                AppLogger.e(TAG, "初始化飞书服务失败", e)
             }
         }
+
+        try {
+            val filter = android.content.IntentFilter(ToolProgressNotifier.ACTION_TOOL_PROGRESS)
+            if (Build.VERSION.SDK_INT >= 33) {
+                registerReceiver(toolProgressReceiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("DEPRECATION")
+                registerReceiver(toolProgressReceiver, filter)
+            }
+            AppLogger.d(TAG, "工具进度消息接收器已注册")
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "注册工具进度消息接收器失败", e)
+        }
+    }
+
+    /**
+     * 注销工具进度消息接收器
+     */
+    private fun unregisterToolProgressReceiver() {
+        toolProgressReceiver?.let {
+            try {
+                unregisterReceiver(it)
+                AppLogger.d(TAG, "工具进度消息接收器已注销")
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "注销工具进度消息接收器失败", e)
+            }
+        }
+        toolProgressReceiver = null
     }
 
     /**
@@ -859,49 +940,10 @@ class FloatingChatService : Service(), FloatingWindowCallback {
 
         AppLogger.d(TAG, "hasImage=$hasImage, imageKey=$imageKey")
 
+        // 图片消息和壁纸命令由 FeishuAutoStartService 处理，这里跳过
         if (!imageKey.isNullOrBlank()) {
-            AppLogger.d(TAG, "检测到图片，imageKey: $imageKey, messageId: ${message.messageId}")
-
-            // 检查是否是设置壁纸命令
-            val isWallpaperCommand = userMessage.contains("壁纸") ||
-                    userMessage.contains("wallpaper") ||
-                    userMessage.contains("背景")
-
-            if (isWallpaperCommand) {
-                // 发送确认
-                feishuService.sendMessage(feishuChatId, "🖼️ 正在设置壁纸...")
-
-                try {
-                    val feishuClient = com.ai.assistance.operit.services.FeishuClient(applicationContext)
-                    val feishuPreferences = com.ai.assistance.operit.data.preferences.FeishuPreferences.getInstance(applicationContext)
-                    val config = feishuPreferences.getFeishuConfig()
-
-                    // 使用 WallpaperUtil 设置壁纸，传递 messageId
-                    val result = com.ai.assistance.operit.util.WallpaperUtil.setWallpaperFromFeishu(
-                        applicationContext,
-                        feishuClient,
-                        config,
-                        imageKey,
-                        message.messageId  // 传递消息 ID
-                    )
-
-                    if (result.isSuccess) {
-                        feishuService.sendMessage(feishuChatId, "✅ 壁纸设置成功！")
-                    } else {
-                        val error = result.exceptionOrNull()?.message ?: "未知错误"
-                        feishuService.sendMessage(feishuChatId, "❌ 壁纸设置失败: $error")
-                    }
-                } catch (e: Exception) {
-                    AppLogger.e(TAG, "设置壁纸异常", e)
-                    feishuService.sendMessage(feishuChatId, "❌ 壁纸设置失败: ${e.message}")
-                }
-
-                return null
-            } else {
-                // 普通图片消息，回复提示
-                feishuService.sendMessage(feishuChatId, "📸 收到图片。如需设置为壁纸，请发送图片时附带说明\"设置壁纸\"。")
-                return null
-            }
+            AppLogger.d(TAG, "检测到图片，跳过处理（由 FeishuAutoStartService 处理）")
+            return null
         }
 
         // ========== 处理文本消息 ==========

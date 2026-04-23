@@ -1142,8 +1142,8 @@
     <string name="permission_guide_storage_desc">Allow the app to read and write files</string>
     <string name="permission_guide_overlay_title">Overlay Permission</string>
     <string name="permission_guide_overlay_desc">Allow the app to display floating windows</string>
-    <string name="permission_guide_battery_title">Battery Optimization Exemption</string>
-    <string name="permission_guide_battery_desc">Allow the app to run in the background</string>
+    <string name="permission_guide_camera_title">Camera Permission</string>
+    <string name="permission_guide_camera_desc">Allow the app to use camera for car interior monitoring and other features</string>
     <string name="permission_guide_location_title">Location Permission</string>
     <string name="permission_guide_location_desc">Allow the app to access location information</string>
     <string name="permission_guide_check_permissions">Check Permission Status</string>

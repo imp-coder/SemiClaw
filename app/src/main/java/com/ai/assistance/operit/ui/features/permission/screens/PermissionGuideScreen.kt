@@ -137,6 +137,16 @@ fun PermissionGuideScreen(
                 }
             }
 
+    // 摄像头权限请求启动器
+    val cameraPermissionLauncher =
+            rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission()
+            ) { granted ->
+                if (granted) {
+                    viewModel.updateCameraPermission(true)
+                }
+            }
+
     // 页面切换效果
     LaunchedEffect(pagerState.currentPage) {
         when (pagerState.currentPage) {
@@ -254,8 +264,7 @@ fun PermissionGuideScreen(
                         BasicPermissionsPage(
                                 hasStoragePermission = uiState.hasStoragePermission,
                                 hasOverlayPermission = uiState.hasOverlayPermission,
-                                hasBatteryOptimizationExemption =
-                                        uiState.hasBatteryOptimizationExemption,
+                                hasCameraPermission = uiState.hasCameraPermission,
                                 hasLocationPermission = uiState.hasLocationPermission,
                                 onStoragePermissionClick = {
                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -324,50 +333,11 @@ fun PermissionGuideScreen(
                                                 .show()
                                     }
                                 },
-                                onBatteryOptimizationClick = {
-                                    try {
-                                        // 直接请求忽略电池优化，无需用户搜索应用
-                                        val intent =
-                                                Intent(
-                                                                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
-                                                        )
-                                                        .apply {
-                                                            data =
-                                                                    Uri.parse(
-                                                                            "package:" +
-                                                                                    context.packageName
-                                                                    )
-                                                        }
-                                        context.startActivity(intent)
-                                    } catch (e: Exception) {
-                                        // 如果直接请求失败，尝试打开电池优化设置页面
-                                        try {
-                                            val intent =
-                                                    Intent(
-                                                            Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
-                                                    )
-                                            context.startActivity(intent)
-                                            Toast.makeText(
-                                                            context,
-                                                            context.getString(
-                                                                    R.string
-                                                                            .permission_guide_battery_hint
-                                                            ),
-                                                            Toast.LENGTH_LONG
-                                                    )
-                                                    .show()
-                                        } catch (e2: Exception) {
-                                            Toast.makeText(
-                                                            context,
-                                                            context.getString(
-                                                                    R.string
-                                                                            .permission_guide_battery_setting_failed
-                                                            ),
-                                                            Toast.LENGTH_SHORT
-                                                    )
-                                                    .show()
-                                        }
-                                    }
+                                onCameraPermissionClick = {
+                                    // 直接请求摄像头权限
+                                    cameraPermissionLauncher.launch(
+                                            Manifest.permission.CAMERA
+                                    )
                                 },
                                 onLocationPermissionClick = {
                                     // 直接请求位置权限
@@ -601,11 +571,11 @@ private fun WelcomePage() {
 private fun BasicPermissionsPage(
         hasStoragePermission: Boolean,
         hasOverlayPermission: Boolean,
-        hasBatteryOptimizationExemption: Boolean,
+        hasCameraPermission: Boolean,
         hasLocationPermission: Boolean,
         onStoragePermissionClick: () -> Unit,
         onOverlayPermissionClick: () -> Unit,
-        onBatteryOptimizationClick: () -> Unit,
+        onCameraPermissionClick: () -> Unit,
         onLocationPermissionClick: () -> Unit,
         onRefresh: () -> Unit
 ) {
@@ -670,12 +640,12 @@ private fun BasicPermissionsPage(
 
                 HorizontalDivider()
 
-                // 电池优化豁免
+                // 摄像头权限
                 PermissionItem(
-                        title = stringResource(R.string.permission_guide_battery_title),
-                        description = stringResource(R.string.permission_guide_battery_desc),
-                        isGranted = hasBatteryOptimizationExemption,
-                        onClick = onBatteryOptimizationClick
+                        title = stringResource(R.string.permission_guide_camera_title),
+                        description = stringResource(R.string.permission_guide_camera_desc),
+                        isGranted = hasCameraPermission,
+                        onClick = onCameraPermissionClick
                 )
 
                 HorizontalDivider()
@@ -716,7 +686,7 @@ private fun BasicPermissionsPage(
         val allGranted =
                 hasStoragePermission &&
                         hasOverlayPermission &&
-                        hasBatteryOptimizationExemption &&
+                        hasCameraPermission &&
                         hasLocationPermission
 
         AnimatedVisibility(visible = allGranted, enter = fadeIn(), exit = fadeOut()) {

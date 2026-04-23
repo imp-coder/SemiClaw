@@ -215,7 +215,7 @@ class ApiPreferences private constructor(private val context: Context) {
 
         // API 配置默认值 - 视觉模型配置（用于截图/camera功能）
         const val DEFAULT_API_ENDPOINT = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
-        const val DEFAULT_MODEL_NAME = "qwen3-vl-plus"
+        const val DEFAULT_MODEL_NAME = "qwen-vl-plus-latest"
         // 视觉模型的 DashScope API Key
         private const val ENCODED_API_KEY = "c2stYjkxYjQwYWIxZmQ0NDM4ZWFmMzMyMDkzN2QxOTQ1YmQ="
         val DEFAULT_API_KEY: String by lazy { decodeApiKey(ENCODED_API_KEY) }

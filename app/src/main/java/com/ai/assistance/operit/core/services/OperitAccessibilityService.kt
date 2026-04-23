@@ -95,7 +95,7 @@ class OperitAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * 执行点击
+     * 执行点击（异步，立即返回）
      */
     fun performClick(x: Int, y: Int): Boolean {
         Log.d(TAG, "准备在 ($x, $y) 执行点击...")
@@ -121,6 +121,59 @@ class OperitAccessibilityService : AccessibilityService() {
                 Log.w(TAG, "手势被取消。")
             }
         }, null)
+    }
+
+    /**
+     * 执行点击并等待完成（同步，等待手势执行完成）
+     * 使用CountDownLatch确保手势真正执行完成后再返回
+     */
+    fun performClickAndWait(x: Int, y: Int, timeoutMs: Long = 1000): Boolean {
+        Log.d(TAG, "准备在 ($x, $y) 执行点击（同步等待）...")
+
+        val latch = CountDownLatch(1)
+        var gestureCompleted = false
+
+        val clickPath = Path().apply {
+            moveTo(x.toFloat(), y.toFloat())
+            lineTo(x.toFloat(), y.toFloat())
+        }
+
+        val clickStroke = GestureDescription.StrokeDescription(clickPath, 0L, 100L)
+        val gestureDescription = GestureDescription.Builder()
+            .addStroke(clickStroke)
+            .build()
+
+        val dispatchResult = dispatchGesture(gestureDescription, object : GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription?) {
+                super.onCompleted(gestureDescription)
+                gestureCompleted = true
+                Log.i(TAG, "点击手势已成功完成: ($x, $y)")
+                latch.countDown()
+            }
+
+            override fun onCancelled(gestureDescription: GestureDescription?) {
+                super.onCancelled(gestureDescription)
+                Log.w(TAG, "点击手势被取消: ($x, $y)")
+                latch.countDown()
+            }
+        }, null)
+
+        if (!dispatchResult) {
+            Log.e(TAG, "点击手势提交失败: ($x, $y)")
+            return false
+        }
+
+        // 等待手势完成
+        try {
+            val completed = latch.await(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+            if (!completed) {
+                Log.w(TAG, "点击手势等待超时: ($x, $y)")
+            }
+            return gestureCompleted
+        } catch (e: InterruptedException) {
+            Log.e(TAG, "点击手势等待被中断: ($x, $y)", e)
+            return false
+        }
     }
 
     /**
@@ -167,6 +220,169 @@ class OperitAccessibilityService : AccessibilityService() {
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
 
         return dispatchGesture(gesture, null, null)
+    }
+
+    /**
+     * 通过 content-desc 或 text 查找节点并点击
+     * @param searchText 要搜索的文本（content-desc 或 text）
+     * @param timeoutMs 点击等待超时时间
+     * @return 是否成功找到并点击
+     */
+    fun findAndClickByText(searchText: String, timeoutMs: Long = 1000): Boolean {
+        Log.d(TAG, "查找并点击文本/content-desc包含 '$searchText' 的节点...")
+
+        val rootNode = rootInActiveWindow
+        if (rootNode == null) {
+            Log.w(TAG, "findAndClickByText 失败: rootInActiveWindow is null")
+            return false
+        }
+
+        val foundNode = findNodeByText(rootNode, searchText)
+        rootNode.recycle()
+
+        if (foundNode == null) {
+            Log.w(TAG, "findAndClickByText 失败: 未找到包含 '$searchText' 的节点")
+            return false
+        }
+
+        val bounds = Rect()
+        foundNode.getBoundsInScreen(bounds)
+        foundNode.recycle()
+
+        val centerX = bounds.centerX()
+        val centerY = bounds.centerY()
+        Log.d(TAG, "找到节点 '$searchText'，bounds=$bounds，将点击中心点 ($centerX, $centerY)")
+
+        return performClickAndWait(centerX, centerY, timeoutMs)
+    }
+
+    /**
+     * 通过 resource-id 查找节点并点击
+     * @param resourceId 目标节点的 resource-id（可以是完整ID或简短ID）
+     * @param timeoutMs 点击等待超时时间
+     * @return 是否成功找到并点击
+     */
+    fun findAndClickByResourceId(resourceId: String, timeoutMs: Long = 1000): Boolean {
+        Log.d(TAG, "查找并点击 resource-id='$resourceId' 的节点...")
+
+        val rootNode = rootInActiveWindow
+        if (rootNode == null) {
+            Log.w(TAG, "findAndClickByResourceId 失败: rootInActiveWindow is null")
+            return false
+        }
+
+        val foundNode = findNodeByResourceId(rootNode, resourceId)
+        rootNode.recycle()
+
+        if (foundNode == null) {
+            Log.w(TAG, "findAndClickByResourceId 失败: 未找到 resource-id='$resourceId' 的节点")
+            return false
+        }
+
+        val bounds = Rect()
+        foundNode.getBoundsInScreen(bounds)
+        foundNode.recycle()
+
+        val centerX = bounds.centerX()
+        val centerY = bounds.centerY()
+        Log.d(TAG, "找到节点 resource-id='$resourceId'，bounds=$bounds，将点击中心点 ($centerX, $centerY)")
+
+        return performClickAndWait(centerX, centerY, timeoutMs)
+    }
+
+    /**
+     * 递归查找包含指定文本的节点（匹配 text 或 content-desc）
+     */
+    private fun findNodeByText(node: AccessibilityNodeInfo, searchText: String): AccessibilityNodeInfo? {
+        // 检查当前节点的 text 和 content-desc
+        val text = node.text?.toString() ?: ""
+        val contentDesc = node.contentDescription?.toString() ?: ""
+
+        if (text.contains(searchText, ignoreCase = true) ||
+            contentDesc.contains(searchText, ignoreCase = true)) {
+            Log.d(TAG, "找到匹配节点: text='$text', contentDesc='$contentDesc', class=${node.className}")
+            return node  // 返回找到的节点，不要 recycle
+        }
+
+        // 递归检查子节点
+        for (i in 0 until node.childCount) {
+            val childNode = node.getChild(i)
+            if (childNode != null) {
+                val found = findNodeByText(childNode, searchText)
+                if (found != null) {
+                    // 找到了，回收当前 childNode 但不回收 found
+                    return found
+                }
+                childNode.recycle()
+            }
+        }
+
+        return null
+    }
+
+    /**
+     * 递归查找指定 resource-id 的节点
+     */
+    private fun findNodeByResourceId(node: AccessibilityNodeInfo, resourceId: String): AccessibilityNodeInfo? {
+        // 检查当前节点的 resource-id（支持完整ID或简短ID匹配）
+        val currentResourceId = node.viewIdResourceName ?: ""
+        if (currentResourceId == resourceId || currentResourceId.endsWith(":$resourceId")) {
+            Log.d(TAG, "找到匹配节点: resource-id='$currentResourceId', class=${node.className}")
+            return node
+        }
+
+        // 递归检查子节点
+        for (i in 0 until node.childCount) {
+            val childNode = node.getChild(i)
+            if (childNode != null) {
+                val found = findNodeByResourceId(childNode, resourceId)
+                if (found != null) {
+                    return found
+                }
+                childNode.recycle()
+            }
+        }
+
+        return null
+    }
+
+    /**
+     * 通过 resource-id 查找节点（仅查找，不点击）
+     * @param resourceId 目标节点的 resource-id（可以是完整ID或简短ID）
+     * @return 是否找到该节点
+     */
+    fun findNodeByResourceId(resourceId: String): Boolean {
+        val rootNode = rootInActiveWindow
+        if (rootNode == null) {
+            return false
+        }
+
+        val found = findNodeByResourceIdInternal(rootNode, resourceId)
+        rootNode.recycle()
+        return found
+    }
+
+    /**
+     * 递归查找指定 resource-id 的节点（内部方法，用于检查是否存在）
+     */
+    private fun findNodeByResourceIdInternal(node: AccessibilityNodeInfo, resourceId: String): Boolean {
+        val currentResourceId = node.viewIdResourceName ?: ""
+        if (currentResourceId == resourceId || currentResourceId.endsWith(":$resourceId")) {
+            return true
+        }
+
+        for (i in 0 until node.childCount) {
+            val childNode = node.getChild(i)
+            if (childNode != null) {
+                val found = findNodeByResourceIdInternal(childNode, resourceId)
+                childNode.recycle()
+                if (found) {
+                    return true
+                }
+            }
+        }
+
+        return false
     }
 
     /**

@@ -1095,8 +1095,8 @@
     <string name="permission_guide_storage_desc">允许应用读写文件</string>
     <string name="permission_guide_overlay_title">悬浮窗权限</string>
     <string name="permission_guide_overlay_desc">允许应用显示悬浮窗</string>
-    <string name="permission_guide_battery_title">电池优化豁免</string>
-    <string name="permission_guide_battery_desc">允许应用在后台运行</string>
+    <string name="permission_guide_camera_title">摄像头权限</string>
+    <string name="permission_guide_camera_desc">允许应用使用摄像头进行车内检测等功能</string>
     <string name="permission_guide_location_title">位置权限</string>
     <string name="permission_guide_location_desc">允许应用获取位置信息</string>
     <string name="permission_guide_check_permissions">检查权限状态</string>

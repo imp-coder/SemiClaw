@@ -83,6 +83,12 @@ class FeishuWebSocketService(private val context: Context) {
     private fun sendMessageToChannel(message: FeishuIncomingMessage) {
         val currentTime = System.currentTimeMillis()
 
+        // 过滤机器人自己发送的消息
+        if (message.senderType == "app") {
+            AppLogger.d(TAG, "忽略机器人发送的消息: messageId=${message.messageId}")
+            return
+        }
+
         // 使用 messageId 作为日志标识
         val uniqueKey = message.messageId?.takeIf { it.isNotBlank() } ?: run {
             "${message.chatId}_${message.content?.take(50) ?: ""}"
@@ -515,11 +521,20 @@ class FeishuWebSocketService(private val context: Context) {
             val msgType = message.optString("message_type")  // 注意：字段名是 message_type
             val content = message.optString("content")
             val createTime = message.optString("create_time")
+            val parentMessageId = message.optString("parent_id")  // 引用消息ID
 
             val senderId = sender?.optJSONObject("sender_id")?.optString("open_id")
 
-            AppLogger.d(TAG, "解析消息成功: messageId=$messageId, chatId=$chatId, msgType=$msgType")
+            AppLogger.d(TAG, "解析消息成功: messageId=$messageId, chatId=$chatId, msgType=$msgType, parentMessageId=$parentMessageId")
             AppLogger.d(TAG, "消息内容: $content")
+            AppLogger.d(TAG, "发送者: senderId=$senderId, senderType=${sender?.optString("sender_type")}")
+
+            // 过滤机器人自己发送的消息
+            val senderType = sender?.optString("sender_type")
+            if (senderType == "app") {
+                AppLogger.d(TAG, "忽略机器人自己发送的消息: messageId=$messageId")
+                return
+            }
 
             if (chatId.isNotBlank()) {
                 val incomingMessage = FeishuIncomingMessage(
@@ -531,7 +546,8 @@ class FeishuWebSocketService(private val context: Context) {
                     createTime = createTime.toLongOrNull(),
                     senderId = senderId,
                     senderType = sender?.optString("sender_type"),
-                    tenantKey = sender?.optString("tenant_key")
+                    tenantKey = sender?.optString("tenant_key"),
+                    parentMessageId = parentMessageId
                 )
 
                 sendMessageToChannel(incomingMessage)
@@ -628,10 +644,21 @@ class FeishuWebSocketService(private val context: Context) {
                 }
             }
 
+            // 解析sender信息，过滤机器人发送的消息
+            var senderType: String? = null
+            if (sender != null && sender.isNotEmpty()) {
+                senderType = parseSenderType(sender)
+                if (senderType == "app") {
+                    AppLogger.d(TAG, "忽略机器人发送的消息(protobuf解析)")
+                    return
+                }
+            }
+
             if (message != null) {
                 val msgData = parseMessageData(message)
                 if (msgData != null) {
-                    sendMessageToChannel(msgData)
+                    // 将senderType添加到消息中
+                    sendMessageToChannel(msgData.copy(senderType = senderType))
                 }
             }
         } catch (e: Exception) {
@@ -775,6 +802,37 @@ class FeishuWebSocketService(private val context: Context) {
     }
 
     /**
+     * 从 sender bytes 解析 senderType
+     */
+    private fun parseSenderType(senderBytes: ByteArray): String? {
+        try {
+            val buffer = java.nio.ByteBuffer.wrap(senderBytes)
+            buffer.order(java.nio.ByteOrder.BIG_ENDIAN)
+
+            while (buffer.hasRemaining()) {
+                try {
+                    val tag = decodeVarintFromBuffer(buffer)
+                    if (tag == 0) break
+
+                    val fieldNumber = tag shr 3
+                    val wireType = tag and 0x7
+
+                    // sender_type 字段通常是 field 2
+                    when (fieldNumber) {
+                        2 -> return decodeStringFromBuffer(buffer, wireType)
+                        else -> skipFieldFromBuffer(buffer, wireType)
+                    }
+                } catch (e: Exception) {
+                    break
+                }
+            }
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "解析senderType失败", e)
+        }
+        return null
+    }
+
+    /**
      * 从 headers 解析事件
      */
     private fun parseEventFromHeaders(headers: List<Pbbp2Codec.Header>) {
@@ -826,7 +884,8 @@ class FeishuWebSocketService(private val context: Context) {
                 senderId = sender?.optJSONObject("sender_id")?.optString("open_id")
                     ?: message.optString("sender_id"),
                 senderType = sender?.optString("sender_type"),
-                tenantKey = sender?.optString("tenant_key")
+                tenantKey = sender?.optString("tenant_key"),
+                parentMessageId = message.optString("parent_id")
             )
 
             // 如果有 chatId 和 content，说明解析成功
@@ -858,7 +917,8 @@ class FeishuWebSocketService(private val context: Context) {
                 createTime = message?.optString("create_time")?.toLongOrNull(),
                 senderId = sender?.optString("sender_id"),
                 senderType = sender?.optString("sender_type"),
-                tenantKey = sender?.optString("tenant_key")
+                tenantKey = sender?.optString("tenant_key"),
+                parentMessageId = message?.optString("parent_id")
             )
 
             AppLogger.d(TAG, "解析消息: chatId=${incomingMessage.chatId}, content=${incomingMessage.content?.take(50)}")
@@ -886,7 +946,8 @@ data class FeishuIncomingMessage(
     val createTime: Long? = null,
     val senderId: String? = null,
     val senderType: String? = null,
-    val tenantKey: String? = null
+    val tenantKey: String? = null,
+    val parentMessageId: String? = null  // 引用消息的ID
 ) {
     /**
      * 获取文本消息内容

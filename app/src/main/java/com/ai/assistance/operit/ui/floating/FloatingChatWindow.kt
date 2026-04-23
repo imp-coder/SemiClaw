@@ -65,7 +65,7 @@ import com.ai.assistance.operit.ui.floating.ui.window.screen.FloatingChatWindowM
  */
 @Composable
 fun FloatingChatWindow(
-        messages: List<ChatMessage>,
+        messages: State<List<ChatMessage>>,
         width: Dp,
         height: Dp,
         onClose: () -> Unit,
@@ -87,16 +87,18 @@ fun FloatingChatWindow(
         onSendMessage: ((String, PromptFunctionType) -> Unit)? = null,
         onCancelMessage: (() -> Unit)? = null,
         onAttachmentRequest: ((String) -> Unit)? = null,
-        attachments: List<AttachmentInfo> = emptyList(),
+        attachments: State<List<AttachmentInfo>> = mutableStateOf(emptyList()),
         onRemoveAttachment: ((String) -> Unit)? = null,
         onInputFocusRequest: ((Boolean) -> Unit)? = null,
         chatService: FloatingChatService? = null,
         windowState: FloatingWindowState? = null,
         inputProcessingState: State<InputProcessingState> = mutableStateOf(InputProcessingState.Idle)
 ) {
+    val messagesList by messages
+    val attachmentsList by attachments
     val floatContext =
             rememberFloatContext(
-                    messages = messages,
+                    messages = messagesList,
                     width = width,
                     height = height,
                     onClose = onClose,
@@ -118,7 +120,7 @@ fun FloatingChatWindow(
                     onSendMessage = onSendMessage,
                     onCancelMessage = onCancelMessage,
                     onAttachmentRequest = onAttachmentRequest,
-                    attachments = attachments,
+                    attachments = attachmentsList,
                     onRemoveAttachment = onRemoveAttachment,
                     onInputFocusRequest = onInputFocusRequest,
                     chatService = chatService,
